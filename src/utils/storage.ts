@@ -30,45 +30,22 @@ const STORAGE_KEYS = {
   SETTINGS: 'maobu_settings',
 };
 
-// Initial Seed Data
+// Initial Seed Data - Pure Software Onboarding & Usage Guide (Zero Dummy Presets)
 const DEFAULT_PLANS: PlanItem[] = [
   {
-    id: 'p_1',
-    title: '体验【猫步可爱】全能功能',
-    description: '查看计划、笔记、安全密码箱、2FA动态码、微软邮箱、AI对话与生图',
-    priority: 'urgent',
+    id: 'p_readme',
+    title: '🐱【猫步可爱】全能个人助理使用说明',
+    description: '欢迎使用猫步可爱！本条目为软件内置功能使用指南。你可以点击勾选子步骤体验进度，也可以随时编辑或点击垃圾桶删除。',
+    priority: 'high',
     category: 'life',
     dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     isCompleted: false,
     subtasks: [
-      { id: 'st_1', title: '测试微软邮箱刷新令牌与收件箱', isDone: false },
-      { id: 'st_2', title: '体验 2FA 动态口令 30s 倒计时', isDone: false },
-      { id: 'st_3', title: '在 AI 伴侣中切换技能对话', isDone: false },
+      { id: 'st_guide_1', title: '1. 点击上方「✨ AI 规划」：让真实大模型为你深度推导并拆解行动目标', isDone: false },
+      { id: 'st_guide_2', title: '2. 切换到「笔记」：体验高品质 Markdown 排版与 AI 实时干活动态流', isDone: false },
+      { id: 'st_guide_3', title: '3. 体验「安全箱」：本地加密密码管理与 30 秒倒计时 2FA 动态令牌', isDone: false },
+      { id: 'st_guide_4', title: '4. 探索「AI 伴侣」：在「模型配置」中管理端点密钥，或在「技能市场」安装插件', isDone: false },
     ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'p_2',
-    title: '给猫咪梳毛并投喂冻干奖励 🐾',
-    description: '每天下班陪伴猫咪 20 分钟互动',
-    priority: 'high',
-    category: 'cat',
-    dueDate: new Date().toISOString().split('T')[0],
-    isCompleted: false,
-    subtasks: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'p_3',
-    title: '整理常用重要密码与两步验证备份',
-    description: '存入加密密码箱，并导出离线备份文件',
-    priority: 'medium',
-    category: 'work',
-    dueDate: new Date(Date.now() + 172800000).toISOString().split('T')[0],
-    isCompleted: false,
-    subtasks: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -250,7 +227,28 @@ function setStored<T>(key: string, value: T): void {
 
 export const db = {
   // Plans
-  getPlans: (): PlanItem[] => getStored(STORAGE_KEYS.PLANS, DEFAULT_PLANS),
+  getPlans: (): PlanItem[] => {
+    const stored = getStored<PlanItem[]>(STORAGE_KEYS.PLANS, DEFAULT_PLANS);
+    // Remove legacy dummy presets ("给猫咪梳毛", "整理常用重要密码", etc.) per user directive
+    const hasOldDummy = stored.some(
+      p => p.id === 'p_2' || p.id === 'p_3' || p.title.includes('给猫咪梳毛') || p.title.includes('整理常用重要密码') || p.id === 'p_1'
+    );
+    if (hasOldDummy) {
+      const filtered = stored.filter(
+        p => !p.title.includes('给猫咪梳毛') && !p.title.includes('整理常用重要密码') && p.id !== 'p_1'
+      );
+      const hasReadme = filtered.some(p => p.id === 'p_readme');
+      const finalPlans = hasReadme ? filtered : [DEFAULT_PLANS[0], ...filtered];
+      setStored(STORAGE_KEYS.PLANS, finalPlans);
+      return finalPlans;
+    }
+    if (!stored.some(p => p.id === 'p_readme')) {
+      const withReadme = [DEFAULT_PLANS[0], ...stored];
+      setStored(STORAGE_KEYS.PLANS, withReadme);
+      return withReadme;
+    }
+    return stored;
+  },
   savePlans: (plans: PlanItem[]) => setStored(STORAGE_KEYS.PLANS, plans),
 
   // Notes

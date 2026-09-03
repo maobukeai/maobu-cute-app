@@ -26,6 +26,7 @@ import {
   ChevronUp,
   Sliders,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 import { generateAIPlan, GeneratedPlanOutput } from '../../utils/ai';
 
@@ -71,6 +72,11 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   const [aiPlanError, setAiPlanError] = useState<string | null>(null);
   const [editableSubtasks, setEditableSubtasks] = useState<string[]>([]);
   const [newResultSubtask, setNewResultSubtask] = useState('');
+
+  // Mobile Polish: Search, Subtask Folding, Quick Inline Inputs
+  const [searchQuery, setSearchQuery] = useState('');
+  const [collapsedPlanIds, setCollapsedPlanIds] = useState<Set<string>>(new Set());
+  const [inlineSubtaskInputs, setInlineSubtaskInputs] = useState<Record<string, string>>({});
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -248,8 +254,16 @@ export const PlansTab: React.FC<PlansTabProps> = ({
     }
   };
 
-  // Filter plans
+  // Filter plans with search keyword
   const filteredPlans = plans.filter(plan => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchTitle = plan.title.toLowerCase().includes(q);
+      const matchDesc = plan.description?.toLowerCase().includes(q);
+      const matchSub = plan.subtasks.some(st => st.title.toLowerCase().includes(q));
+      if (!matchTitle && !matchDesc && !matchSub) return false;
+    }
+
     if (filter === 'all') return true;
     if (filter === 'today') return plan.dueDate === todayStr;
     if (filter === 'pending') return !plan.isCompleted;
@@ -260,7 +274,65 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   // Calculate statistics
   const totalCount = plans.length;
   const completedCount = plans.filter(p => p.isCompleted).length;
+  const pendingCount = plans.filter(p => !p.isCompleted).length;
+  const urgentCount = plans.filter(p => p.priority === 'urgent' && !p.isCompleted).length;
+  const todayDueCount = plans.filter(p => p.dueDate === todayStr && !p.isCompleted).length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  // Inline Quick Subtask Helpers
+  const handleQuickAddSubtask = (planId: string) => {
+    const text = inlineSubtaskInputs[planId]?.trim();
+    if (!text) return;
+    sound.playTap();
+
+    const newSubtask: SubTask = {
+      id: `st_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: text,
+      isDone: false,
+    };
+
+    const updated = plans.map(p => {
+      if (p.id === planId) {
+        return {
+          ...p,
+          subtasks: [...p.subtasks, newSubtask],
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return p;
+    });
+
+    onUpdatePlans(updated);
+    db.savePlans(updated);
+    setInlineSubtaskInputs(prev => ({ ...prev, [planId]: '' }));
+  };
+
+  const handleQuickRemoveSubtask = (planId: string, subtaskId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    sound.playTap();
+    const updated = plans.map(p => {
+      if (p.id === planId) {
+        return {
+          ...p,
+          subtasks: p.subtasks.filter(st => st.id !== subtaskId),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return p;
+    });
+    onUpdatePlans(updated);
+    db.savePlans(updated);
+  };
+
+  const toggleCollapseSubtasks = (planId: string) => {
+    sound.playTap();
+    setCollapsedPlanIds(prev => {
+      const next = new Set(prev);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
+  };
 
   // Toggle plan completion
   const handleToggleComplete = (planId: string, currentStatus: boolean) => {
@@ -409,15 +481,75 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   const getPriorityBadge = (priority: PriorityLevel) => {
     switch (priority) {
       case 'urgent':
-        return <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400 font-semibold">紧急</span>;
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 font-bold border border-rose-200/80 dark:border-rose-900/50">
+            ⚡ 紧急
+          </span>
+        );
       case 'high':
-        return <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400 font-semibold">重要</span>;
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 font-bold border border-amber-200/80 dark:border-amber-900/50">
+            重要
+          </span>
+        );
       case 'medium':
-        return <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 font-medium">普通</span>;
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-medium border border-blue-200/80 dark:border-blue-900/50">
+            普通
+          </span>
+        );
       case 'low':
       default:
-        return <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">日常</span>;
+        return (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            日常
+          </span>
+        );
     }
+  };
+
+  const getDueDateBadge = (dueDate?: string, isCompleted?: boolean) => {
+    if (!dueDate) return null;
+    if (isCompleted) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 flex items-center space-x-1">
+          <Calendar className="w-3 h-3" />
+          <span>{dueDate}</span>
+        </span>
+      );
+    }
+
+    if (dueDate < todayStr) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 font-bold flex items-center space-x-1 shadow-xs animate-pulse">
+          <AlertCircle className="w-3 h-3" />
+          <span>已逾期 ({dueDate})</span>
+        </span>
+      );
+    }
+    if (dueDate === todayStr) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold flex items-center space-x-1 shadow-xs">
+          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+          <span>今天截止 ⏰</span>
+        </span>
+      );
+    }
+    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    if (dueDate === tomorrowStr) {
+      return (
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-medium flex items-center space-x-1">
+          <Calendar className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+          <span>明天截止</span>
+        </span>
+      );
+    }
+    return (
+      <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 flex items-center space-x-1">
+        <Calendar className="w-3 h-3" />
+        <span>截止：{dueDate}</span>
+      </span>
+    );
   };
 
   const getCategoryLabel = (cat: string) => {
@@ -434,61 +566,109 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
       {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 pb-20">
-        {/* Daily Motivation & Progress Card (Apple Health/WeChat Moment style) */}
-        <div className="glass-card p-3.5 rounded-2xl shadow-ios border border-white/60 dark:border-zinc-800 flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-100">今日成就进度</span>
-              <span className="text-[11px] font-bold text-[#07C160]">
-                {completedCount}/{totalCount} 项
-              </span>
+      <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 pb-24">
+        {/* Quick Search Bar */}
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="搜索任务标题、描述或子步骤..."
+            className="w-full pl-8 pr-8 py-2 text-xs rounded-2xl bg-white/90 dark:bg-zinc-800/90 border border-zinc-200/70 dark:border-zinc-700/60 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-[#07C160]/40 shadow-xs transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-zinc-200/70 dark:bg-zinc-700 text-zinc-500 hover:text-zinc-800 text-[11px]"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Daily Motivation & Bento Dashboard Card (Apple Health/WeChat style) */}
+        <div className="glass-card p-4 rounded-3xl shadow-sm border border-white/80 dark:border-zinc-800/90 bg-white/95 dark:bg-zinc-900/95 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0 pr-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">今日成就进度</span>
+                <span className="text-xs font-black text-[#07C160] px-2 py-0.5 rounded-full bg-[#E8F8F0] dark:bg-[#07C160]/20">
+                  {completedCount} / {totalCount} 项 ({progressPercent}%)
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 truncate">
+                {progressPercent === 100
+                  ? '🎉 太棒了！全部计划已圆满达成喵~'
+                  : progressPercent >= 50
+                  ? '🐾 已经完成大半啦，继续保持冲劲！'
+                  : '迈出轻巧猫步，专注完成每一个微小目标~'}
+              </p>
             </div>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              {progressPercent === 100 ? '太棒了！今天计划全部达成！🎉🐾' : '迈出猫步，专注完成每一个微小目标~'}
-            </p>
-            {/* Progress bar */}
-            <div className="w-44 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden mt-1.5">
-              <div
-                className="h-full bg-gradient-to-r from-[#07C160] to-[#FF6B8B] rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              ></div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              {/* AI Assistant Generator */}
+              <button
+                onClick={handleOpenAIPlanner}
+                className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:from-purple-600 hover:to-rose-500 text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
+                title="AI 智能规划任务"
+              >
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                <span>AI 规划</span>
+              </button>
+
+              {/* Manual Add Button */}
+              <button
+                onClick={handleOpenAdd}
+                className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] hover:brightness-105 text-white shadow-sm active:scale-95 flex items-center justify-center transition-all"
+                title="手动添加新计划"
+              >
+                <Plus className="w-5 h-5 stroke-[2.5]" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 shrink-0">
-            {/* AI Assistant Generator */}
-            <button
-              onClick={handleOpenAIPlanner}
-              className="flex items-center space-x-1.5 px-3 py-2.5 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:from-purple-600 hover:to-rose-500 text-white font-bold text-xs shadow-sm active:scale-95 transition-transform"
-              title="AI 智能规划任务"
-            >
-              <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-              <span>AI 规划</span>
-            </button>
+          {/* Progress Bar Track */}
+          <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#07C160] via-emerald-400 to-[#FF6B8B] rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
 
-            {/* Manual Add Button */}
-            <button
-              onClick={handleOpenAdd}
-              className="flex flex-col items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] text-white shadow-md active:scale-95 transition-transform"
-              title="手动添加新计划"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+          {/* Micro Stat Badges */}
+          <div className="grid grid-cols-4 gap-1.5 pt-0.5 text-center">
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
+              <div className="text-[10px] text-zinc-400">总计划</div>
+              <div className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{totalCount}</div>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
+              <div className="text-[10px] text-amber-500">待完成</div>
+              <div className="text-xs font-bold text-amber-600 dark:text-amber-400">{pendingCount}</div>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
+              <div className="text-[10px] text-rose-500">紧急</div>
+              <div className="text-xs font-bold text-rose-600 dark:text-rose-400">{urgentCount}</div>
+            </div>
+            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
+              <div className="text-[10px] text-[#07C160]">已达成</div>
+              <div className="text-xs font-bold text-[#07C160]">{completedCount}</div>
+            </div>
           </div>
         </div>
 
-        {/* Filter Pills (iOS Segmented Style) */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+        {/* Filter Pills (iOS Segmented Style, No Scrollbar) */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 no-scrollbar text-xs">
           {[
-            { id: 'all', label: '全部' },
-            { id: 'today', label: '📅 今日' },
-            { id: 'pending', label: '⏳ 进行中' },
-            { id: 'completed', label: '✅ 已完成' },
-            { id: 'cat', label: '🐱 萌宠' },
+            { id: 'all', label: `全部 (${totalCount})` },
+            { id: 'today', label: `📅 今日 (${todayDueCount})` },
+            { id: 'pending', label: `⏳ 进行中 (${pendingCount})` },
+            { id: 'completed', label: `✅ 已完成 (${completedCount})` },
+            { id: 'life', label: '🌸 生活' },
             { id: 'work', label: '💼 工作' },
             { id: 'study', label: '📚 学习' },
             { id: 'health', label: '🏃 健身' },
+            { id: 'cat', label: '🐱 萌宠' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -496,9 +676,9 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                 sound.playTap();
                 setFilter(tab.id);
               }}
-              className={`px-3 py-1.5 rounded-full whitespace-nowrap transition-all font-medium ${
+              className={`px-3 py-1.5 rounded-full whitespace-nowrap transition-all font-medium text-xs ${
                 filter === tab.id
-                  ? 'bg-[#07C160] text-white shadow-sm'
+                  ? 'bg-[#07C160] text-white shadow-xs font-semibold'
                   : 'bg-white/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700'
               }`}
             >
@@ -509,51 +689,74 @@ export const PlansTab: React.FC<PlansTabProps> = ({
 
         {/* Plan List */}
         {filteredPlans.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-2 select-none">
-            <div className="w-16 h-16 rounded-full bg-zinc-200/70 dark:bg-zinc-800/70 flex items-center justify-center text-2xl">
+          <div className="py-14 flex flex-col items-center justify-center text-center space-y-3 select-none bg-white/60 dark:bg-zinc-900/60 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-800">
+            <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-3xl shadow-inner">
               🐾
             </div>
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">这里暂时空空如也喵~</p>
-            <button
-              onClick={handleOpenAdd}
-              className="text-xs text-[#07C160] font-semibold hover:underline"
-            >
-              + 制定第一条猫步计划
-            </button>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                {searchQuery ? '没有找到符合搜索的计划喵~' : '当前分类暂无计划喵~'}
+              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-xs">
+                专注当下，迈出轻巧猫步。你可以让大模型为你规划，或手动制定新目标。
+              </p>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <button
+                onClick={handleOpenAIPlanner}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-semibold text-xs shadow-xs transition"
+              >
+                ✨ AI 智能规划
+              </button>
+              <button
+                onClick={handleOpenAdd}
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold text-xs transition"
+              >
+                + 手动添加计划
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {filteredPlans.map(plan => {
               const hasSubtasks = plan.subtasks && plan.subtasks.length > 0;
               const subtasksDoneCount = plan.subtasks?.filter(st => st.isDone).length || 0;
+              const subtasksTotal = plan.subtasks?.length || 0;
+              const subtasksPercent = subtasksTotal > 0 ? Math.round((subtasksDoneCount / subtasksTotal) * 100) : 0;
+              const isCollapsed = collapsedPlanIds.has(plan.id);
 
               return (
                 <div
                   key={plan.id}
-                  className={`glass-card p-3 rounded-2xl shadow-ios border transition-all duration-200 ${
+                  className={`glass-card p-4 rounded-3xl shadow-sm border transition-all duration-200 ${
                     plan.isCompleted
-                      ? 'border-zinc-200/50 dark:border-zinc-800/50 opacity-60'
-                      : 'border-white/70 dark:border-zinc-800/80 hover:shadow-ios-hover'
+                      ? 'border-zinc-200/50 dark:border-zinc-800/50 opacity-65 bg-zinc-50/50 dark:bg-zinc-900/40'
+                      : plan.priority === 'urgent'
+                      ? 'border-rose-200 dark:border-rose-900/60 bg-gradient-to-br from-rose-50/30 via-white dark:from-rose-950/20 dark:via-zinc-900 shadow-rose-100/50 dark:shadow-none'
+                      : plan.priority === 'high'
+                      ? 'border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/30 via-white dark:from-amber-950/20 dark:via-zinc-900 shadow-amber-100/50 dark:shadow-none'
+                      : 'border-white/80 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95'
                   }`}
                 >
-                  <div className="flex items-start justify-between space-x-2">
-                    {/* Checkbox */}
+                  <div className="flex items-start justify-between space-x-3">
+                    {/* Big Comfortable Checkbox (min 44px tap zone) */}
                     <button
                       onClick={() => handleToggleComplete(plan.id, plan.isCompleted)}
-                      className="mt-0.5 p-1 rounded-full text-zinc-400 hover:text-[#07C160] transition-colors"
+                      className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-[#07C160] active:scale-95 transition-all shrink-0"
+                      title={plan.isCompleted ? '标记为未完成' : '标记为已完成'}
                     >
                       {plan.isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5 text-[#07C160] fill-[#E8F8F0] dark:fill-transparent" />
+                        <CheckCircle2 className="w-6 h-6 text-[#07C160] fill-[#E8F8F0] dark:fill-transparent" />
                       ) : (
-                        <Circle className="w-5 h-5 hover:scale-110 transition-transform" />
+                        <Circle className="w-6 h-6 hover:scale-110 transition-transform" />
                       )}
                     </button>
 
-                    {/* Content */}
+                    {/* Content & Metadata */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                         <h3
-                          className={`text-sm font-semibold truncate ${
+                          className={`text-sm font-bold truncate leading-snug ${
                             plan.isCompleted
                               ? 'line-through text-zinc-400 dark:text-zinc-500'
                               : 'text-zinc-900 dark:text-zinc-100'
@@ -568,74 +771,132 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                       </div>
 
                       {plan.description && (
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed line-clamp-3">
                           {plan.description}
                         </p>
                       )}
 
-                      {/* Subtasks Progress */}
-                      {hasSubtasks && (
-                        <div className="mt-2 pl-1 border-l-2 border-zinc-200 dark:border-zinc-700 space-y-1">
-                          <div className="text-[10px] text-zinc-400 flex items-center justify-between">
-                            <span>子步骤 ({subtasksDoneCount}/{plan.subtasks.length})</span>
-                          </div>
-                          {plan.subtasks.map(st => (
-                            <div
-                              key={st.id}
-                              onClick={() => handleToggleSubtask(plan.id, st.id)}
-                              className="flex items-center space-x-1.5 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none"
-                            >
-                              <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${st.isDone ? 'bg-[#07C160] border-[#07C160] text-white' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                                {st.isDone ? '✓' : ''}
-                              </span>
-                              <span className={st.isDone ? 'line-through text-zinc-400' : ''}>
-                                {st.title}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Footer meta: Due date */}
-                      <div className="flex items-center space-x-3 mt-2 text-[10px] text-zinc-400">
-                        {plan.dueDate && (
-                          <span className={`flex items-center space-x-1 ${plan.dueDate < todayStr && !plan.isCompleted ? 'text-red-500 font-semibold' : ''}`}>
-                            <Calendar className="w-3 h-3" />
-                            <span>
-                              {plan.dueDate === todayStr ? '今天截止' : plan.dueDate}
-                            </span>
+                      {/* Due Date & Subtask Count Meta */}
+                      <div className="flex items-center space-x-2.5 mt-2 text-[10px] text-zinc-400 flex-wrap gap-y-1">
+                        {getDueDateBadge(plan.dueDate, plan.isCompleted)}
+                        {hasSubtasks && (
+                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                            🎯 {subtasksDoneCount}/{subtasksTotal} 步 ({subtasksPercent}%)
                           </span>
+                        )}
+                      </div>
+
+                      {/* Subtasks Accordion Box */}
+                      <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1">
+                            <ListTodo className="w-3.5 h-3.5 text-[#07C160]" />
+                            <span>执行微步骤 ({subtasksDoneCount}/{subtasksTotal})</span>
+                          </span>
+                          {hasSubtasks && (
+                            <button
+                              onClick={() => toggleCollapseSubtasks(plan.id)}
+                              className="flex items-center space-x-0.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                            >
+                              <span>{isCollapsed ? '展开步骤' : '收起步骤'}</span>
+                              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Subtasks Progress Bar (when has subtasks) */}
+                        {hasSubtasks && (
+                          <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-1.5">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#07C160] to-emerald-400 rounded-full transition-all duration-300"
+                              style={{ width: `${subtasksPercent}%` }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Subtask items list */}
+                        {!isCollapsed && (
+                          <div className="space-y-1.5 mt-2">
+                            {plan.subtasks.map(st => (
+                              <div
+                                key={st.id}
+                                className="group flex items-center justify-between p-1.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-800/40 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/70 transition"
+                              >
+                                <div
+                                  onClick={() => handleToggleSubtask(plan.id, st.id)}
+                                  className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer flex-1 min-w-0"
+                                >
+                                  <span className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] border transition ${
+                                    st.isDone
+                                      ? 'bg-[#07C160] border-[#07C160] text-white'
+                                      : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
+                                  }`}>
+                                    {st.isDone ? '✓' : ''}
+                                  </span>
+                                  <span className={`truncate ${st.isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''}`}>
+                                    {st.title}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={e => handleQuickRemoveSubtask(plan.id, st.id, e)}
+                                  className="p-1 text-zinc-300 hover:text-red-500 rounded-lg transition"
+                                  title="删除此步骤"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+
+                            {/* Inline Quick Add Input */}
+                            <div className="flex items-center space-x-1.5 pt-1">
+                              <input
+                                type="text"
+                                value={inlineSubtaskInputs[plan.id] || ''}
+                                onChange={e => setInlineSubtaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))}
+                                onKeyDown={e => e.key === 'Enter' && handleQuickAddSubtask(plan.id)}
+                                placeholder="+ 添加执行微步骤..."
+                                className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-zinc-800 dark:text-zinc-200 outline-none placeholder:text-zinc-400 focus:ring-1 focus:ring-[#07C160]"
+                              />
+                              <button
+                                onClick={() => handleQuickAddSubtask(plan.id)}
+                                disabled={!inlineSubtaskInputs[plan.id]?.trim()}
+                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#07C160] hover:bg-[#06AD56] rounded-xl shadow-xs active:scale-95 transition disabled:opacity-40"
+                              >
+                                添加
+                              </button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center space-x-0.5 shrink-0">
+                    <div className="flex flex-col items-center space-y-1 shrink-0">
                       <button
                         onClick={e => handleAIDecomposeExisting(plan, e)}
                         disabled={aiDecomposingPlanId === plan.id}
-                        className="p-1.5 text-purple-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors"
+                        className="p-2 text-purple-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all"
                         title="AI 智能拆解执行微步骤"
                       >
                         {aiDecomposingPlanId === plan.id ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <RefreshCw className="w-4 h-4 animate-spin" />
                         ) : (
-                          <Sparkles className="w-3.5 h-3.5" />
+                          <Sparkles className="w-4 h-4" />
                         )}
                       </button>
                       <button
                         onClick={e => handleOpenEdit(plan, e)}
-                        className="p-1.5 text-zinc-400 hover:text-blue-500 transition-colors"
+                        className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all"
                         title="编辑"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={e => handleDeletePlan(plan.id, e)}
-                        className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors"
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all"
                         title="删除"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
