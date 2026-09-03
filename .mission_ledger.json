@@ -108,7 +108,10 @@
       "screenshot_ai_planner_modal.png",
       "screenshot_ai_planner_glm52.png",
       "screenshot_ai_planner_adopted.png",
-      "screenshot_plans_ui_overhauled.png"
+      "screenshot_plans_ui_overhauled.png",
+      "screenshot_notes_ai_generated.png",
+      "screenshot_notes_ai_editor_dock.png",
+      "screenshot_notes_ui_overhauled.png"
     ]
   },
   "quality_gate": {
