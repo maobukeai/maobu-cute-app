@@ -101,38 +101,7 @@ const DEFAULT_TWO_FACTOR: TwoFactorToken[] = [
   },
 ];
 
-const DEFAULT_HOTMAIL: HotmailAccount[] = [
-  {
-    id: 'ms_user_account_1',
-    email: 'gkyhnzrzwmw@hotmail.com',
-    password: 'zzbaftapfhdm53',
-    clientId: '9e5f94bc-e8a4-4e73-b8be-63364c29d753',
-    refreshToken: 'M.C514_BL2.0.U.MsaArtifacts.-Cjmy*zba8h9bSZ9gmInf!apAEU0mODjiG5OGR5AeiPmzKVGnCGUgNPg1Nbx!q2O4qwJGI6Ip5HQe6y3kzw1B6hNEMcEn9*ttWvEv2Ykw2p9OizxlOA5Uv1TjzvUBWsAqwXyMz5ZDWnHjiIC07XTn!QwOtTNImxIe7bUdUgszWNQRjP*RmACm4jL2jgkESPdRl4kSHjqYfRYFTo1AwoYls2vymWFJ7rLVOU*lwJ!0ERLFEuAZKw89tPFzfOEzfxMh*3H2UskQlRZ1!5eRsbdnTIxAol9Yw*X1!NlzaWaMoaesCRjwSHhYC9jN1z6GdtEuyn!VU*dwr8yXNPQQhfASsKkoYchfsdVEnkFLqPEwaVSVBlPZq1BhDAkAssks*RSc1mbetXKg6egXmKEVR8H5WaRVtOIopAcX3WntB7HZNWmOvBdRG7sEDupe0FH65LLE0w$$',
-    status: 'idle',
-    messages: [
-      {
-        id: 'msg_demo_1',
-        subject: '【安全通知】您的登录验证码是 849201',
-        from: 'security@accountprotection.microsoft.com',
-        fromName: 'Microsoft 帐户团队',
-        receivedDateTime: new Date().toISOString(),
-        bodyPreview: '您正在进行安全验证。您的验证码是 849201。该验证码将在 15 分钟内有效。',
-        extractedCode: '849201',
-        folder: 'inbox',
-      },
-      {
-        id: 'msg_demo_2',
-        subject: 'Discord 动态验证口令: 519382 (垃圾邮件过滤示例)',
-        from: 'noreply@discord.com',
-        fromName: 'Discord Security',
-        receivedDateTime: new Date(Date.now() - 1800000).toISOString(),
-        bodyPreview: 'Hey! Your Discord login verification security code is 519382. Please do not share it with anyone.',
-        extractedCode: '519382',
-        folder: 'junkemail',
-      }
-    ],
-  }
-];
+const DEFAULT_HOTMAIL: HotmailAccount[] = [];
 
 const DEFAULT_GOOGLE_ACCOUNTS: GoogleWarmingAccount[] = [
   {
@@ -262,7 +231,24 @@ export const db = {
   save2FATokens: (tokens: TwoFactorToken[]) => setStored(STORAGE_KEYS.TWO_FACTOR, tokens),
 
   // Hotmail Accounts
-  getHotmailAccounts: (): HotmailAccount[] => getStored(STORAGE_KEYS.HOTMAIL, DEFAULT_HOTMAIL),
+  getHotmailAccounts: (): HotmailAccount[] => {
+    const raw = getStored<HotmailAccount[]>(STORAGE_KEYS.HOTMAIL, DEFAULT_HOTMAIL);
+    let hasDirty = false;
+    const sanitized = raw.map(acc => {
+      const filtered = (acc.messages || []).filter(
+        m => m.id !== 'msg_demo_1' && m.id !== 'msg_demo_2' && !m.subject.includes('Discord 动态验证口令') && !m.subject.includes('【安全通知】您的登录验证码是 849201')
+      );
+      if (filtered.length !== (acc.messages || []).length) {
+        hasDirty = true;
+        return { ...acc, messages: filtered };
+      }
+      return acc;
+    });
+    if (hasDirty) {
+      setStored(STORAGE_KEYS.HOTMAIL, sanitized);
+    }
+    return sanitized;
+  },
   saveHotmailAccounts: (accounts: HotmailAccount[]) => setStored(STORAGE_KEYS.HOTMAIL, accounts),
 
   // Google Warming Accounts

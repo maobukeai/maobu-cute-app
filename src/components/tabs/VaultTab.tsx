@@ -48,6 +48,8 @@ import {
   X,
   Inbox,
   Lock,
+  ChevronRight,
+  FileText,
 } from 'lucide-react';
 
 interface VaultTabProps {
@@ -283,6 +285,10 @@ export const VaultTab: React.FC<VaultTabProps> = ({
   const [emailFetchError, setEmailFetchError] = useState<string | null>(null);
   const [mailFolderFilter, setMailFolderFilter] = useState<'all' | 'inbox' | 'junkemail'>('all');
 
+  // Single Email Message Detail Viewer Modal
+  const [selectedEmail, setSelectedEmail] = useState<EmailMessage | null>(null);
+  const [emailBodyViewMode, setEmailBodyViewMode] = useState<'rich' | 'plain'>('rich');
+
   // Send Email Modal
   const [showSendModal, setShowSendModal] = useState(false);
   const [sendTargetAcc, setSendTargetAcc] = useState<HotmailAccount | null>(null);
@@ -318,6 +324,20 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       );
       onUpdateHotmailAccounts(updated);
       db.saveHotmailAccounts(updated);
+      if (viewingAccount?.id === acc.id) {
+        setViewingAccount(prev =>
+          prev
+            ? {
+                ...prev,
+                accessToken: res.accessToken,
+                refreshToken: res.refreshToken || prev.refreshToken,
+                status: 'valid',
+                lastCheckedAt: new Date().toISOString(),
+                lastErrorMessage: undefined,
+              }
+            : null
+        );
+      }
       sound.playSuccess();
     } catch (err: any) {
       console.error('Refresh token error:', err);
@@ -333,6 +353,18 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       );
       onUpdateHotmailAccounts(updated);
       db.saveHotmailAccounts(updated);
+      if (viewingAccount?.id === acc.id) {
+        setViewingAccount(prev =>
+          prev
+            ? {
+                ...prev,
+                status: 'error',
+                lastCheckedAt: new Date().toISOString(),
+                lastErrorMessage: err.message,
+              }
+            : null
+        );
+      }
     }
   };
 
@@ -353,13 +385,40 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
       const msgs = await fetchInboxMessages(token, folder);
       const updated = hotmailAccounts.map(a =>
-        a.id === acc.id ? { ...a, messages: msgs, status: 'valid' as const } : a
+        a.id === acc.id
+          ? {
+              ...a,
+              messages: msgs,
+              accessToken: token,
+              status: 'valid' as const,
+              lastCheckedAt: new Date().toISOString(),
+              lastErrorMessage: undefined,
+            }
+          : a
       );
       onUpdateHotmailAccounts(updated);
       db.saveHotmailAccounts(updated);
-      setViewingAccount(prev => (prev?.id === acc.id ? { ...prev, messages: msgs } : prev));
+      setViewingAccount(prev =>
+        prev?.id === acc.id
+          ? {
+              ...prev,
+              messages: msgs,
+              accessToken: token,
+              status: 'valid',
+              lastCheckedAt: new Date().toISOString(),
+              lastErrorMessage: undefined,
+            }
+          : prev
+      );
+      sound.playSuccess();
     } catch (err: any) {
+      console.error('Fetch emails error:', err);
       setEmailFetchError(err.message || '获取邮件失败');
+      const updated = hotmailAccounts.map(a =>
+        a.id === acc.id ? { ...a, status: 'error' as const, lastErrorMessage: err.message } : a
+      );
+      onUpdateHotmailAccounts(updated);
+      db.saveHotmailAccounts(updated);
     } finally {
       setIsLoadingEmails(false);
     }
@@ -832,19 +891,25 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
             {/* Hotmail Accounts List */}
             {hotmailAccounts.length === 0 ? (
-              <div className="py-14 text-center space-y-2 select-none">
-                <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
+              <div className="py-14 text-center space-y-3 select-none">
+                <div className="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
                   📧
                 </div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">暂无微软邮箱账号</p>
+                <div>
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">暂无微软邮箱账号</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    支持通过 RefreshToken 批量托管微软 Hotmail / Outlook 邮箱与自动提取验证码
+                  </p>
+                </div>
                 <button
                   onClick={() => {
-                    handleFillSample();
+                    sound.playTap();
                     setShowHotmailImportModal(true);
                   }}
-                  className="text-xs text-[#07C160] font-semibold hover:underline"
+                  className="px-4 py-2 text-xs text-white bg-[#07C160] rounded-xl font-bold hover:bg-[#06AD56] shadow-sm transition inline-flex items-center space-x-1"
                 >
-                  + 一键导入预设账号体验
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>导入微软邮箱账号</span>
                 </button>
               </div>
             ) : (
@@ -1316,13 +1381,9 @@ export const VaultTab: React.FC<VaultTabProps> = ({
             />
 
             <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={handleFillSample}
-                className="text-xs text-[#FF6B8B] hover:underline font-semibold"
-              >
-                ✨ 载入用户提供的测试账号
-              </button>
+              <span className="text-[11px] text-zinc-400">
+                支持以 ----、--- 或制表符分隔各字段
+              </span>
 
               <div className="flex items-center space-x-2">
                 <button
@@ -1486,7 +1547,11 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                   .map(msg => (
                   <div
                     key={msg.id}
-                    className="p-3.5 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2"
+                    onClick={() => {
+                      sound.playTap();
+                      setSelectedEmail(msg);
+                    }}
+                    className="p-3.5 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all active:scale-[0.99] group"
                   >
                     {/* Top row: Sender & Folder Badge & Date */}
                     <div className="flex items-center justify-between text-xs">
@@ -1509,13 +1574,16 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                       </span>
                     </div>
 
-                    <h5 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    <h5 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {msg.subject}
                     </h5>
 
                     {/* Extracted Verification Code Banner (Feature Highlight!) */}
                     {msg.extractedCode && (
-                      <div className="p-2.5 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800/40 rounded-xl flex items-center justify-between">
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        className="p-2.5 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800/40 rounded-xl flex items-center justify-between"
+                      >
                         <div className="flex items-center space-x-2">
                           <span className="text-xs font-bold text-green-700 dark:text-green-300">
                             🔑 识别到验证码：
@@ -1525,6 +1593,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                           </span>
                         </div>
                         <button
+                          type="button"
                           onClick={() => copyWithFeedback(msg.extractedCode!, msg.id + '_code')}
                           className="px-2.5 py-1 bg-[#07C160] hover:bg-[#06AD56] text-white text-xs font-bold rounded-lg shadow-xs flex items-center space-x-1"
                         >
@@ -1535,9 +1604,20 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                     )}
 
                     {/* Preview Text */}
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2">
                       {msg.bodyPreview}
                     </p>
+
+                    {/* Click prompt */}
+                    <div className="flex items-center justify-between text-[11px] pt-1 text-blue-600 dark:text-blue-400 font-medium border-t border-zinc-100 dark:border-zinc-700/40">
+                      <span className="flex items-center space-x-1">
+                        <span>点击阅读完整邮件详情</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </span>
+                      <span className="text-[10px] text-zinc-400">
+                        {msg.bodyHtml ? '完整网页格式' : '纯文本'}
+                      </span>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -1623,6 +1703,153 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Single Email Message Detail Viewer Modal */}
+      {selectedEmail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-[#1C1C1E] rounded-3xl flex flex-col shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-start justify-between shrink-0 bg-zinc-50/70 dark:bg-zinc-800/40">
+              <div className="min-w-0 pr-3 space-y-1">
+                <div className="flex items-center space-x-2">
+                  {selectedEmail.folder === 'junkemail' ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold shrink-0">
+                      🗑️ 垃圾邮件
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 font-bold shrink-0">
+                      📥 收件箱
+                    </span>
+                  )}
+                  <span className="text-[11px] text-zinc-400">
+                    {selectedEmail.receivedDateTime ? new Date(selectedEmail.receivedDateTime).toLocaleString() : ''}
+                  </span>
+                </div>
+                <h4 className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-zinc-100 leading-snug break-words">
+                  {selectedEmail.subject}
+                </h4>
+              </div>
+
+              <button
+                onClick={() => setSelectedEmail(null)}
+                className="p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sender / Recipient Information Bar */}
+            <div className="px-4 py-2.5 bg-zinc-100/60 dark:bg-zinc-800/60 border-b border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2 truncate">
+                <span className="text-zinc-400 font-medium">发件人:</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                  {selectedEmail.fromName ? `${selectedEmail.fromName} <${selectedEmail.from}>` : selectedEmail.from}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyWithFeedback(selectedEmail.from, 'sender_email')}
+                className="text-[10px] text-zinc-500 hover:text-blue-600 shrink-0 ml-2"
+              >
+                {copiedId === 'sender_email' ? '已复制' : '复制发件人'}
+              </button>
+            </div>
+
+            {/* Extracted Code Highlight if any */}
+            {selectedEmail.extractedCode && (
+              <div className="p-3 mx-4 my-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800/50 rounded-2xl flex items-center justify-between shadow-xs shrink-0">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-xl bg-green-500 text-white shadow-xs">
+                    <KeyRound className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold text-green-700 dark:text-green-300">
+                      识别到动态安全验证码 / 提取码
+                    </div>
+                    <div className="font-mono text-lg font-black text-green-600 dark:text-green-400 tracking-wider">
+                      {selectedEmail.extractedCode}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => copyWithFeedback(selectedEmail.extractedCode!, 'modal_code')}
+                  className="px-3 py-1.5 bg-[#07C160] hover:bg-[#06AD56] text-white text-xs font-bold rounded-xl shadow-sm flex items-center space-x-1 active:scale-95 transition"
+                >
+                  {copiedId === 'modal_code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedId === 'modal_code' ? '已复制' : '一键复制验证码'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* View Mode Toggle (if HTML exists) */}
+            {selectedEmail.bodyHtml && (
+              <div className="px-4 pt-1 flex items-center justify-end space-x-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEmailBodyViewMode('rich')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                    emailBodyViewMode === 'rich'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  网页渲染视图
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailBodyViewMode('plain')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition ${
+                    emailBodyViewMode === 'plain'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  纯文本视图
+                </button>
+              </div>
+            )}
+
+            {/* Email Full Content Area */}
+            <div className="flex-1 overflow-y-auto p-4 select-text">
+              {selectedEmail.bodyHtml && emailBodyViewMode === 'rich' ? (
+                <div
+                  className="prose dark:prose-invert max-w-none text-xs leading-relaxed overflow-x-auto bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800"
+                  dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }}
+                />
+              ) : (
+                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap font-sans">
+                  {selectedEmail.bodyText || selectedEmail.bodyPreview || '暂无更多正文内容'}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-800/30">
+              <button
+                type="button"
+                onClick={() => {
+                  const fullText = `主题: ${selectedEmail.subject}\n发件人: ${selectedEmail.from}\n时间: ${selectedEmail.receivedDateTime}\n\n${selectedEmail.bodyText || selectedEmail.bodyPreview || ''}`;
+                  copyWithFeedback(fullText, 'full_email_text');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 transition flex items-center space-x-1"
+              >
+                {copiedId === 'full_email_text' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedId === 'full_email_text' ? '已复制邮件全文' : '复制邮件全文'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedEmail(null)}
+                className="px-5 py-1.5 text-xs font-bold rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm hover:opacity-90 transition active:scale-95"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         </div>
       )}

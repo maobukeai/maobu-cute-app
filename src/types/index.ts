@@ -67,6 +67,7 @@ export interface EmailMessage {
   receivedDateTime: string;
   bodyPreview: string;
   bodyHtml?: string;
+  bodyText?: string;
   extractedCode?: string; // 4-8 digit verification code/SMS
   folder?: 'inbox' | 'junkemail';
 }
