@@ -45,9 +45,8 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
     sound.playTap();
     onSelectTab(tabId);
   };
-
   return (
-    <nav className="h-[54px] bg-white/90 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-around px-2 select-none z-30 shrink-0">
+    <nav className="h-[56px] bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-xl border-t border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom,0px)] select-none z-30 shrink-0">
       {tabs.map(tab => {
         const Icon = tab.icon;
         const isActive = activeTab === tab.id;
