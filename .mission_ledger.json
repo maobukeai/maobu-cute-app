@@ -107,7 +107,8 @@
       "screenshot_ui_refined_no_fake_bars.png",
       "screenshot_ai_planner_modal.png",
       "screenshot_ai_planner_glm52.png",
-      "screenshot_ai_planner_adopted.png"
+      "screenshot_ai_planner_adopted.png",
+      "screenshot_plans_ui_overhauled.png"
     ]
   },
   "quality_gate": {
