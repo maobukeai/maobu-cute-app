@@ -777,6 +777,9 @@ export interface GeneratedNoteOutput {
   category: string;
   tags: string[];
   content: string;
+  modelUsed: string;
+  reasoningContent?: string;
+  durationSeconds: number;
 }
 
 export async function generateAINote({
@@ -785,6 +788,7 @@ export async function generateAINote({
   provider,
   model,
   signal,
+  onChunk,
   onReasoningChunk,
 }: {
   topic: string;
@@ -792,6 +796,7 @@ export async function generateAINote({
   provider?: AIProvider;
   model?: string;
   signal?: AbortSignal;
+  onChunk?: (chunk: string) => void;
   onReasoningChunk?: (chunk: string) => void;
 }): Promise<GeneratedNoteOutput> {
   const cleanTopic = topic.trim();
@@ -799,8 +804,19 @@ export async function generateAINote({
     throw new Error('请输入你想要撰写的笔记主题或构思');
   }
 
-  const allProviders = typeof window !== 'undefined' ? (window as any).__MAOBU_PROVIDERS__ || [] : [];
-  const activeProvider = provider || allProviders.find((p: AIProvider) => p.isActive) || DEFAULT_CUSTOM_PROVIDER;
+  // Get active provider from parameter or local storage
+  let activeProvider = provider;
+  if (!activeProvider && typeof window !== 'undefined') {
+    try {
+      const stored = JSON.parse(localStorage.getItem('maobu_ai_providers') || '[]');
+      activeProvider = stored.find((p: any) => p.isActive) || stored[0];
+    } catch {
+      // ignore
+    }
+  }
+  if (!activeProvider) {
+    activeProvider = DEFAULT_CUSTOM_PROVIDER;
+  }
 
   if (!activeProvider || !activeProvider.apiKey || !activeProvider.apiKey.trim()) {
     throw new Error('未配置有效的大模型 API Key。请前往「AI 伴侣」->「模型配置」填写或配置有效 API 密钥。');
@@ -825,6 +841,7 @@ export async function generateAINote({
 }`;
 
   let rawContent = '';
+  const startTime = Date.now();
 
   try {
     const streamRes = await streamChatCompletion({
@@ -837,45 +854,57 @@ export async function generateAINote({
       signal,
       onChunk: delta => {
         rawContent += delta;
+        if (onChunk) onChunk(delta);
       },
       onReasoningChunk: onReasoningChunk,
     });
     rawContent = streamRes.content || rawContent;
+    const reasoningContent = streamRes.reasoningContent || '';
+    const durationSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+
+    let textToParse = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    const codeBlockMatch = textToParse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      textToParse = codeBlockMatch[1].trim();
+    }
+
+    const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return {
+        title: cleanTopic,
+        category: '灵感',
+        tags: ['AI生成', '灵感'],
+        content: rawContent,
+        modelUsed: selectedModel,
+        reasoningContent,
+        durationSeconds,
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        title: parsed.title || cleanTopic,
+        category: parsed.category || '灵感',
+        tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['灵感', '笔记'],
+        content: parsed.content || rawContent,
+        modelUsed: selectedModel,
+        reasoningContent,
+        durationSeconds,
+      };
+    } catch {
+      return {
+        title: cleanTopic,
+        category: '灵感',
+        tags: ['AI生成', '笔记'],
+        content: rawContent,
+        modelUsed: selectedModel,
+        reasoningContent,
+        durationSeconds,
+      };
+    }
   } catch (err: any) {
     const friendly = formatFriendlyAIError(err.message || String(err));
     throw new Error(`大模型 [${selectedModel}] 笔记生成失败: ${friendly}`);
-  }
-
-  let textToParse = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  const codeBlockMatch = textToParse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (codeBlockMatch && codeBlockMatch[1]) {
-    textToParse = codeBlockMatch[1].trim();
-  }
-
-  const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return {
-      title: cleanTopic,
-      category: '灵感',
-      tags: ['AI生成', '灵感'],
-      content: rawContent,
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      title: parsed.title || cleanTopic,
-      category: parsed.category || '灵感',
-      tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['灵感', '笔记'],
-      content: parsed.content || rawContent,
-    };
-  } catch {
-    return {
-      title: cleanTopic,
-      category: '灵感',
-      tags: ['AI生成', '笔记'],
-      content: rawContent,
-    };
   }
 }

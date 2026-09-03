@@ -76,22 +76,6 @@ const DEFAULT_NOTES: NoteItem[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
-  {
-    id: 'n_2',
-    title: '常用大模型 Prompt 技巧与 Skill 设定',
-    content: `## 优质 System Prompt 设定结构
-
-1. **角色定义**：你是谁，具备什么领域权威背景；
-2. **语调风格**：亲切温柔、专业严谨、还是幽默生动；
-3. **输出格式**：Markdown 格式、分条目清晰列出、代码高亮；
-4. **约束规则**：禁止废话，直奔主题，给出最小可行方案。`,
-    category: '工作',
-    tags: ['AI', 'Prompt'],
-    isPinned: false,
-    isFavorite: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
 ];
 
 const DEFAULT_TWO_FACTOR: TwoFactorToken[] = [
@@ -252,7 +236,21 @@ export const db = {
   savePlans: (plans: PlanItem[]) => setStored(STORAGE_KEYS.PLANS, plans),
 
   // Notes
-  getNotes: (): NoteItem[] => getStored(STORAGE_KEYS.NOTES, DEFAULT_NOTES),
+  getNotes: (): NoteItem[] => {
+    const stored = getStored<NoteItem[]>(STORAGE_KEYS.NOTES, DEFAULT_NOTES);
+    const hasOldDummy = stored.some(
+      n => n.id === 'n_2' || n.title.includes('常用大模型 Prompt 技巧与 Skill 设定')
+    );
+    if (hasOldDummy) {
+      const filtered = stored.filter(
+        n => n.id !== 'n_2' && !n.title.includes('常用大模型 Prompt 技巧与 Skill 设定')
+      );
+      const finalNotes = filtered.length > 0 ? filtered : DEFAULT_NOTES;
+      setStored(STORAGE_KEYS.NOTES, finalNotes);
+      return finalNotes;
+    }
+    return stored;
+  },
   saveNotes: (notes: NoteItem[]) => setStored(STORAGE_KEYS.NOTES, notes),
 
   // Passwords

@@ -30,6 +30,9 @@ import {
   ChevronUp,
   Square,
   AlertCircle,
+  Bot,
+  ExternalLink,
+  Languages,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -43,12 +46,14 @@ interface NotesTabProps {
   notes: NoteItem[];
   onUpdateNotes: (newNotes: NoteItem[]) => void;
   accentColor: AccentColor;
+  onSwitchToAITab?: () => void;
 }
 
 export const NotesTab: React.FC<NotesTabProps> = ({
   notes,
   onUpdateNotes,
   accentColor,
+  onSwitchToAITab,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -65,6 +70,17 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [copiedNoteId, setCopiedNoteId] = useState<string | null>(null);
 
+  // Model & Real AI State
+  const activeProvider = db.getAIProviders().find(p => p.isActive) || db.getAIProviders()[0];
+  const availableModels = activeProvider?.availableModels?.length
+    ? activeProvider.availableModels
+    : ['deepseek-v4-flash', 'glm-5.2', 'kimi-k3'];
+  const [selectedNoteModel, setSelectedNoteModel] = useState<string>('deepseek-v4-flash');
+  const [liveReasoning, setLiveReasoning] = useState('');
+  const [showReasoningView, setShowReasoningView] = useState(false);
+  const [liveElapsedSeconds, setLiveElapsedSeconds] = useState(0);
+  const [aiNoteError, setAiNoteError] = useState<string | null>(null);
+
   // AI Note Generator State
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiTopicInput, setAiTopicInput] = useState('');
@@ -76,7 +92,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   // AI Live Action Dock State
   const [aiActionState, setAiActionState] = useState<{
     isOpen: boolean;
-    action: 'continue' | 'polish' | 'summary' | null;
+    action: 'continue' | 'polish' | 'summary' | 'tags' | 'translate' | null;
     status: 'idle' | 'reasoning' | 'generating' | 'completed' | 'error';
     reasoning: string;
     isReasoningExpanded: boolean;
@@ -99,14 +115,20 @@ export const NotesTab: React.FC<NotesTabProps> = ({
     sound.playTap();
     setAiTopicInput('');
     setAiNoteResult(null);
+    setLiveReasoning('');
+    setAiNoteError(null);
+    setShowReasoningView(false);
+    if (activeProvider?.defaultModel) {
+      setSelectedNoteModel(activeProvider.defaultModel);
+    }
     setShowAIModal(true);
   };
 
-  // Run AI Note generation
+  // Run AI Note generation with Real LLM API & Thinking
   const handleRunAINote = async (quickTopic?: string, customStyle?: 'guide' | 'essay' | 'xhs' | 'summary') => {
     const topicToUse = quickTopic || aiTopicInput;
     if (!topicToUse.trim()) {
-      alert('请输入你想记录的笔记主题或想法');
+      alert('请输入你想记录的笔记主题或构思');
       return;
     }
     if (quickTopic) setAiTopicInput(quickTopic);
@@ -114,18 +136,33 @@ export const NotesTab: React.FC<NotesTabProps> = ({
 
     sound.playTap();
     setIsAIGenerating(true);
+    setLiveReasoning('');
+    setAiNoteError(null);
+    setAiNoteResult(null);
+    setShowReasoningView(false);
+    setLiveElapsedSeconds(0);
+
+    const timerInterval = setInterval(() => {
+      setLiveElapsedSeconds(prev => prev + 1);
+    }, 1000);
+
     try {
-      const activeProvider = db.getAIProviders().find(p => p.isActive);
       const res = await generateAINote({
         topic: topicToUse,
         style: styleToUse,
         provider: activeProvider,
+        model: selectedNoteModel,
+        onReasoningChunk: reasoningDelta => {
+          setLiveReasoning(prev => prev + reasoningDelta);
+        },
       });
       setAiNoteResult(res);
       sound.playSuccess();
     } catch (err: any) {
-      alert(`AI 创作提示: ${err.message}`);
+      setAiNoteError(err.message || '大模型生成笔记失败，请检查 API 配置后重试');
+      sound.playTap();
     } finally {
+      clearInterval(timerInterval);
       setIsAIGenerating(false);
     }
   };
@@ -189,15 +226,14 @@ export const NotesTab: React.FC<NotesTabProps> = ({
     sound.playTap();
   };
 
-  // Toolbar AI polish / continue writing / summary with Live Streaming & Thinking
-  const handleToolbarAIPolish = async (action: 'continue' | 'polish' | 'summary') => {
+  // Toolbar AI polish / continue writing / summary / tags / translate with Live Streaming & Thinking
+  const handleToolbarAIPolish = async (action: 'continue' | 'polish' | 'summary' | 'tags' | 'translate') => {
     if (!formContent.trim()) {
-      alert('请先在正文中输入一段内容，AI 才能为你续写、润色或提炼要点');
+      alert('请先在正文中输入一段内容，AI 才能为你续写、润色、打标签或提炼要点');
       return;
     }
     sound.playTap();
 
-    const activeProvider = db.getAIProviders().find(p => p.isActive) || db.getAIProviders()[0];
     if (!activeProvider || !activeProvider.apiKey) {
       alert('未检测到有效的大模型配置，请先在【AI伴侣 ➔ 模型配置】中配置有效的 API Key');
       return;
@@ -226,14 +262,21 @@ export const NotesTab: React.FC<NotesTabProps> = ({
     } else if (action === 'polish') {
       systemPrompt = `你是一位顶级中文编辑与 Markdown 排版美学大师。请对用户提供的笔记进行文笔打磨、行文结构梳理、段落节奏优化与排版美化，提升专业度与可读性。保留原文全部核心论据与要点，直接输出润色后的全新完整 Markdown 文本，切勿包含多余寒暄。`;
       userPrompt = `请对以下笔记进行全面文笔润色与优美排版：\n\n【笔记标题】：${formTitle || '未命名笔记'}\n【原始正文】：\n${formContent}`;
-    } else {
+    } else if (action === 'summary') {
       systemPrompt = `你是一位敏锐高效的思维导图与速读专家。请提炼出用户笔记的核心要点摘要，整理为 3~5 条条理分明、高度浓缩的 Markdown 关键 Takeaways 列表，附带简明行动启示。直接输出列表文本，切勿包含多余寒暄。`;
       userPrompt = `请从以下笔记正文中提取核心精髓与关键要点：\n\n【笔记标题】：${formTitle || '未命名笔记'}\n【笔记正文】：\n${formContent}`;
+    } else if (action === 'tags') {
+      systemPrompt = `你是一位专业的内容分类与标签专家。请根据用户的笔记标题与正文，提炼出 3~5 个最精准、简明、高价值的标签词，用逗号隔开输出，例如：“React19, 前端架构, 并发模式, 性能优化”。不要输出任何多余的解释。`;
+      userPrompt = `请为以下笔记提取最合适的标签关键词：\n\n【笔记标题】：${formTitle || '未命名笔记'}\n【笔记正文】：\n${formContent}`;
+    } else {
+      systemPrompt = `你是一位精通中英双语的专业翻译专家。若用户笔记主要为中文，请将其精准翻译为专业、优雅的英文 Markdown；若为英文则翻译为地道流利的中文 Markdown。直接输出翻译后的正文，保留所有原始排版标记。`;
+      userPrompt = `请对以下笔记进行高质量互译：\n\n【笔记正文】：\n${formContent}`;
     }
 
     try {
       await streamChatCompletion({
         provider: activeProvider,
+        model: selectedNoteModel || activeProvider.defaultModel || 'deepseek-v4-flash',
         messages: [{ role: 'user', content: userPrompt }],
         systemPrompt,
         signal: abortControllerRef.current.signal,
@@ -258,7 +301,6 @@ export const NotesTab: React.FC<NotesTabProps> = ({
           } else {
             setAiActionState(prev => ({
               ...prev,
-              status: 'generating',
               output: prev.output + delta,
             }));
           }
@@ -268,21 +310,19 @@ export const NotesTab: React.FC<NotesTabProps> = ({
       setAiActionState(prev => ({
         ...prev,
         status: 'completed',
-        isReasoningExpanded: false,
       }));
       sound.playSuccess();
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        console.log('AI note generation aborted');
-      } else {
-        console.error('Note AI assistance error:', err);
-        const friendly = formatFriendlyAIError(err.message);
-        setAiActionState(prev => ({
-          ...prev,
-          status: 'error',
-          errorMessage: friendly,
-        }));
+      if (abortControllerRef.current?.signal.aborted) {
+        setAiActionState(prev => ({ ...prev, status: 'idle' }));
+        return;
       }
+      setAiActionState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: formatFriendlyAIError(err.message || String(err)),
+      }));
+      sound.playTap();
     }
   };
 
@@ -604,9 +644,9 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                   <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-medium">
                     {note.category}
                   </span>
-                  {note.tags.map(t => (
+                  {Array.from(new Set(note.tags)).map((t, idx) => (
                     <span
-                      key={t}
+                      key={`${t}-${idx}`}
                       className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400"
                     >
                       #{t}
@@ -821,7 +861,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                     onClick={() => handleToolbarAIPolish('polish')}
                     disabled={aiActionState.status === 'reasoning' || aiActionState.status === 'generating'}
                     className="px-2 py-0.5 rounded text-[11px] bg-pink-50 hover:bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300 flex items-center space-x-1 font-semibold transition disabled:opacity-50"
-                    title="AI 润色与结构优化"
+                    title="AI 润色与排版美化"
                   >
                     {aiActionState.isOpen && aiActionState.action === 'polish' && (aiActionState.status === 'reasoning' || aiActionState.status === 'generating') ? (
                       <RefreshCw className="w-3 h-3 animate-spin" />
@@ -843,6 +883,34 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                       <FileText className="w-3 h-3" />
                     )}
                     <span>提炼要点</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToolbarAIPolish('tags')}
+                    disabled={aiActionState.status === 'reasoning' || aiActionState.status === 'generating'}
+                    className="px-2 py-0.5 rounded text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-center space-x-1 font-semibold transition disabled:opacity-50"
+                    title="AI 智能提取并填充标签"
+                  >
+                    {aiActionState.isOpen && aiActionState.action === 'tags' && (aiActionState.status === 'reasoning' || aiActionState.status === 'generating') ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Tag className="w-3 h-3" />
+                    )}
+                    <span>AI 标签</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToolbarAIPolish('translate')}
+                    disabled={aiActionState.status === 'reasoning' || aiActionState.status === 'generating'}
+                    className="px-2 py-0.5 rounded text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 flex items-center space-x-1 font-semibold transition disabled:opacity-50"
+                    title="AI 中英双语互译"
+                  >
+                    {aiActionState.isOpen && aiActionState.action === 'translate' && (aiActionState.status === 'reasoning' || aiActionState.status === 'generating') ? (
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Languages className="w-3 h-3" />
+                    )}
+                    <span>AI 翻译</span>
                   </button>
                 </div>
               )}
@@ -1028,6 +1096,46 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                             <FileText className="w-3.5 h-3.5" />
                             <span>插入文末为【核心要点】</span>
                           </button>
+                        ) : aiActionState.action === 'tags' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cleanTags = aiActionState.output.replace(/[#]/g, '').trim();
+                              setFormTags(prev => prev ? `${prev}, ${cleanTags}` : cleanTags);
+                              sound.playSuccess();
+                              setAiActionState(prev => ({ ...prev, isOpen: false }));
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs active:scale-95 transition flex items-center space-x-1"
+                          >
+                            <Tag className="w-3.5 h-3.5" />
+                            <span>一键填入标签栏</span>
+                          </button>
+                        ) : aiActionState.action === 'translate' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormContent(aiActionState.output);
+                                sound.playSuccess();
+                                setAiActionState(prev => ({ ...prev, isOpen: false }));
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-xs shadow-xs active:scale-95 transition flex items-center space-x-1"
+                            >
+                              <Languages className="w-3.5 h-3.5" />
+                              <span>采纳并替换为译文</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormContent(prev => prev.trim() + '\n\n---\n### 🌐 双语对照译文\n' + aiActionState.output);
+                                sound.playSuccess();
+                                setAiActionState(prev => ({ ...prev, isOpen: false }));
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 font-medium text-xs transition"
+                            >
+                              追加译文到文末
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
@@ -1145,6 +1253,65 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               </button>
             </div>
 
+            {/* Model Selector & API Status Banner */}
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/60 text-xs">
+              <div className="flex items-center space-x-2 flex-1 min-w-0 pr-2">
+                <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300 shrink-0">创作模型:</span>
+                <select
+                  value={selectedNoteModel}
+                  onChange={e => setSelectedNoteModel(e.target.value)}
+                  className="bg-white dark:bg-zinc-800 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold text-xs rounded-xl px-2.5 py-1 outline-none truncate shadow-2xs"
+                >
+                  {availableModels.map(m => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {activeProvider?.apiKey?.trim() ? (
+                <span className="shrink-0 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+                  API 已就绪
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAIModal(false);
+                    if (onSwitchToAITab) onSwitchToAITab();
+                  }}
+                  className="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 px-2 py-0.5 rounded-full hover:underline flex items-center space-x-0.5"
+                >
+                  <span>未配置密钥，去配置</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Error Notification Banner */}
+            {aiNoteError && (
+              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 space-y-1.5 animate-fade-in">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <p className="flex-1 font-medium leading-relaxed">{aiNoteError}</p>
+                </div>
+                {!activeProvider?.apiKey?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAIModal(false);
+                      if (onSwitchToAITab) onSwitchToAITab();
+                    }}
+                    className="ml-6 px-2.5 py-1 rounded-lg bg-rose-600 text-white font-bold text-[10px] hover:bg-rose-700 transition"
+                  >
+                    前往「AI 伴侣」配置 API Key ➔
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Topic Input */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
@@ -1220,7 +1387,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               {isAIGenerating ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>AI 正在挥毫创作高质量 Markdown 笔记...</span>
+                  <span>正在调用 [{selectedNoteModel}] 深度创作中... ({liveElapsedSeconds}s)</span>
                 </>
               ) : (
                 <>
@@ -1230,26 +1397,79 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               )}
             </button>
 
+            {/* Live Streaming Reasoning Preview during Generation */}
+            {isAIGenerating && liveReasoning && (
+              <div className="p-3 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/40 space-y-1.5 animate-fade-in">
+                <div className="flex items-center justify-between text-xs font-bold text-purple-700 dark:text-purple-300">
+                  <div className="flex items-center space-x-1.5">
+                    <Brain className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
+                    <span>模型深度思考推导中 ({liveReasoning.length} 字)...</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-purple-500">{liveElapsedSeconds}s</span>
+                </div>
+                <div className="max-h-28 overflow-y-auto text-[11px] font-mono leading-relaxed text-zinc-600 dark:text-zinc-400 bg-white/70 dark:bg-zinc-900/60 p-2.5 rounded-xl whitespace-pre-wrap select-text">
+                  {liveReasoning}
+                </div>
+              </div>
+            )}
+
             {/* Result Preview Card */}
             {aiNoteResult && (
               <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/80 space-y-3 animate-fade-in">
                 <div className="space-y-1.5">
-                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                    <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
-                      {aiNoteResult.title}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-200/80 dark:bg-purple-800 text-purple-800 dark:text-purple-200 font-semibold">
-                      {aiNoteResult.category}
-                    </span>
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
+                        {aiNoteResult.title}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-200/80 dark:bg-purple-800 text-purple-800 dark:text-purple-200 font-semibold">
+                        {aiNoteResult.category}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-1.5 text-[10px] text-purple-700 dark:text-purple-300 font-mono bg-white/80 dark:bg-zinc-800 px-2 py-0.5 rounded-md border border-purple-100 dark:border-purple-900">
+                      <Bot className="w-3 h-3 text-purple-600" />
+                      <span>{aiNoteResult.modelUsed}</span>
+                      <span>·</span>
+                      <span>{aiNoteResult.durationSeconds}s</span>
+                    </div>
                   </div>
+
                   <div className="flex items-center space-x-1 flex-wrap gap-1">
-                    {aiNoteResult.tags.map(t => (
-                      <span key={t} className="text-[10px] text-purple-600 dark:text-purple-400 bg-white/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                    {Array.from(new Set(aiNoteResult.tags)).map((t, idx) => (
+                      <span key={`${t}-${idx}`} className="text-[10px] text-purple-600 dark:text-purple-400 bg-white/80 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
                         #{t}
                       </span>
                     ))}
                   </div>
                 </div>
+
+                {/* Collapsible Model Reasoning Drawer */}
+                {aiNoteResult.reasoningContent && (
+                  <div className="rounded-xl border border-purple-200/60 dark:border-purple-900/50 bg-white/60 dark:bg-zinc-900/60 overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setShowReasoningView(prev => !prev)}
+                      className="w-full px-2.5 py-1.5 flex items-center justify-between text-left hover:bg-purple-100/30 transition select-none"
+                    >
+                      <div className="flex items-center space-x-1.5 text-[11px] text-purple-700 dark:text-purple-300 font-medium">
+                        <Brain className="w-3 h-3 text-purple-600" />
+                        <span>完整思维推导过程 ({aiNoteResult.reasoningContent.length} 字)</span>
+                      </div>
+                      <div className="flex items-center space-x-1 text-zinc-400 text-[10px]">
+                        <span>{showReasoningView ? '收起' : '展开查看'}</span>
+                        <ChevronDown
+                          className={`w-3 h-3 transition-transform ${showReasoningView ? 'rotate-180' : ''}`}
+                        />
+                      </div>
+                    </button>
+                    {showReasoningView && (
+                      <div className="p-2.5 border-t border-purple-100 dark:border-purple-900/30 font-mono text-[10px] leading-relaxed text-zinc-600 dark:text-zinc-400 max-h-36 overflow-y-auto whitespace-pre-wrap select-text">
+                        {aiNoteResult.reasoningContent}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Markdown content preview box */}
                 <div className="max-h-48 overflow-y-auto p-3 rounded-xl bg-white dark:bg-zinc-800/80 text-xs leading-relaxed border border-purple-100 dark:border-purple-900 text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap select-text font-sans">
@@ -1264,7 +1484,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                     className="py-2.5 px-3 rounded-xl bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold flex items-center justify-center space-x-1 border border-zinc-200 dark:border-zinc-700 transition active:scale-95"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>打开编辑器润色</span>
+                    <span>在编辑器深度润色</span>
                   </button>
 
                   <button

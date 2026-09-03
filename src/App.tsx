@@ -144,6 +144,7 @@ export const App: React.FC = () => {
             notes={notes}
             onUpdateNotes={setNotes}
             accentColor={settings.accentColor}
+            onSwitchToAITab={() => handleSelectTab('ai')}
           />
         )}
 
