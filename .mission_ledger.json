@@ -104,7 +104,10 @@
       "screenshot_android_vm_settings.png",
       "screenshot_android_apk_installed_launched.png",
       "screenshot_android_apk_ai_companion.png",
-      "screenshot_ui_refined_no_fake_bars.png"
+      "screenshot_ui_refined_no_fake_bars.png",
+      "screenshot_ai_planner_modal.png",
+      "screenshot_ai_planner_glm52.png",
+      "screenshot_ai_planner_adopted.png"
     ]
   },
   "quality_gate": {
