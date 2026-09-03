@@ -638,174 +638,135 @@ export interface GeneratedPlanOutput {
   category: 'life' | 'work' | 'study' | 'cat' | 'health';
   dueDate: string;
   subtasks: string[];
+  modelUsed?: string;
+  reasoningContent?: string;
+  durationSeconds?: number;
 }
 
 export async function generateAIPlan({
   prompt,
   provider,
+  model,
+  signal,
+  onReasoningChunk,
 }: {
   prompt: string;
   provider?: AIProvider;
+  model?: string;
+  signal?: AbortSignal;
+  onReasoningChunk?: (chunk: string) => void;
 }): Promise<GeneratedPlanOutput> {
   const cleanPrompt = prompt.trim();
   if (!cleanPrompt) {
-    throw new Error('请输入你想要规划的目标或任务');
+    throw new Error('请输入你想要规划的目标或愿望想法');
   }
 
-  // 1. If provider has apiKey, try calling LLM for customized structured response
-  if (provider && provider.apiKey) {
-    try {
-      const systemPrompt = `你是一位敏捷项目规划专家。请根据用户的目标或愿望，生成一份结构严密、可执行性极高的任务计划方案。
-必须返回纯 JSON 格式对象，不要包含 markdown 标记或任何其他文本：
+  // Get active or first configured provider
+  const allProviders = typeof window !== 'undefined' ? (window as any).__MAOBU_PROVIDERS__ || [] : [];
+  const activeProvider = provider || allProviders.find((p: AIProvider) => p.isActive) || DEFAULT_CUSTOM_PROVIDER;
+
+  if (!activeProvider || !activeProvider.apiKey || !activeProvider.apiKey.trim()) {
+    throw new Error('未配置有效的大模型 API Key。请前往「AI 伴侣」->「模型配置」填写或配置有效 API 密钥，让真实大模型为你规划。');
+  }
+
+  const startTime = Date.now();
+  const selectedModel = model || activeProvider.defaultModel || 'deepseek-v4-flash';
+
+  const systemPrompt = `你是一位高阶敏捷项目规划与任务拆解专家。
+请根据用户的真实目标：“${cleanPrompt}”，进行深度思考与精细拆解，生成一份切实可行、逻辑严密、可直接执行的计划方案。
+你必须直接返回纯合法的 JSON 格式对象，不要包含任何前导客套话、解释或 markdown 标记：
 {
-  "title": "简明有力的任务标题",
-  "description": "该任务的执行要点与注意事项",
+  "title": "简短有力的行动标题（10~25字，如：【萌宠全套】周末猫咪全面体检与专业洗护）",
+  "description": "执行要点、注意事项与预期达成效果（50~100字）",
   "priority": "urgent" | "high" | "medium" | "low",
   "category": "life" | "work" | "study" | "cat" | "health",
-  "dueDateDays": 0 到 7 的整数天数,
+  "dueDateDays": 1 到 7 的建议完成周期天数,
   "subtasks": [
-    "第一步：具体行动",
-    "第二步：具体行动",
-    "第三步：具体行动",
-    "第四步：具体行动"
+    "第一步：具体行动步骤与交付指标",
+    "第二步：具体行动步骤与交付指标",
+    "第三步：具体行动步骤与交付指标",
+    "第四步：具体行动步骤与交付指标"
   ]
 }`;
 
-      const payload = {
-        model: provider.defaultModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `用户目标：${cleanPrompt}` },
-        ],
-        temperature: 0.7,
-      };
+  let rawContent = '';
+  let reasoningContent = '';
 
-      const url = `${provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
-      let res: Response;
-      try {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${provider.apiKey}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      } catch {
-        res = await fetch('/api/ai-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${provider.apiKey}`,
-            },
-            body: payload,
-          }),
-        });
-      }
+  try {
+    const streamRes = await streamChatCompletion({
+      provider: activeProvider,
+      model: selectedModel,
+      messages: [
+        { role: 'user', content: `请为我定制任务执行方案，我的目标是：${cleanPrompt}` }
+      ],
+      systemPrompt,
+      signal,
+      onChunk: delta => {
+        rawContent += delta;
+      },
+      onReasoningChunk: delta => {
+        reasoningContent += delta;
+        if (onReasoningChunk) onReasoningChunk(delta);
+      },
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        const content = json.choices?.[0]?.message?.content || '';
-        const match = content.match(/\{[\s\S]*\}/);
-        if (match) {
-          const parsed = JSON.parse(match[0]);
-          const days = typeof parsed.dueDateDays === 'number' ? parsed.dueDateDays : 2;
-          const due = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
-          return {
-            title: parsed.title || cleanPrompt,
-            description: parsed.description || '',
-            priority: ['urgent', 'high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
-            category: ['life', 'work', 'study', 'cat', 'health'].includes(parsed.category) ? parsed.category : 'life',
-            dueDate: due,
-            subtasks: Array.isArray(parsed.subtasks) && parsed.subtasks.length > 0 ? parsed.subtasks : ['开始执行核心步骤'],
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('LLM plan generation failed, falling back to smart heuristic engine:', e);
-    }
+    rawContent = streamRes.content || rawContent;
+    reasoningContent = streamRes.reasoningContent || reasoningContent;
+  } catch (err: any) {
+    const friendly = formatFriendlyAIError(err.message || String(err));
+    throw new Error(`大模型 [${selectedModel}] 规划失败: ${friendly}`);
   }
 
-  // 2. Smart Heuristic Engine (100% reliable offline / fallback)
-  const lower = cleanPrompt.toLowerCase();
-  let category: 'life' | 'work' | 'study' | 'cat' | 'health' = 'life';
-  let priority: 'urgent' | 'high' | 'medium' | 'low' = 'medium';
-  let title = cleanPrompt;
-  let description = `由猫步 AI 规划助手根据目标「${cleanPrompt}」智能生成，建议分阶段按步推进。`;
-  let subtasks: string[] = [];
-  let dueDays = 3;
-
-  if (/猫|狗|宠|咪|疫苗|驱虫|梳毛|罐头|绝育/.test(lower)) {
-    category = 'cat';
-    priority = 'high';
-    title = cleanPrompt.startsWith('【') ? cleanPrompt : `【萌宠呵护】${cleanPrompt}`;
-    subtasks = [
-      '检查猫咪精神状态、食欲与基础体重记录',
-      '准备专用航空箱与湿粮/冻干安抚零食',
-      '按计划带猫咪完成体检或细致梳毛除菌',
-      '记录本次护理健康日志并清理消毒用品',
-    ];
-    dueDays = 2;
-  } else if (/学|课|书|读|考|练|python|react|编程|英语|背词|复盘/.test(lower)) {
-    category = 'study';
-    priority = 'high';
-    title = cleanPrompt.startsWith('【') ? cleanPrompt : `【进阶学习】${cleanPrompt}`;
-    subtasks = [
-      '梳理核心知识大纲与今日学习章节重点',
-      '沉浸式学习核心理论并手敲 30 分钟代码/笔记',
-      '完成对应配套练习题或实现小型 Demo 验证',
-      '用自己的语言在备忘录中撰写简短复盘总结',
-    ];
-    dueDays = 1;
-  } else if (/工作|上线|会议|方案|需求|项目|报告|客户|bug|代码|开发/.test(lower)) {
-    category = 'work';
-    priority = 'urgent';
-    title = cleanPrompt.startsWith('【') ? cleanPrompt : `【工作攻坚】${cleanPrompt}`;
-    subtasks = [
-      '梳理核心交付物范围、排期与关键对齐人',
-      '排查阻断性风险项，编写核心实现代码或方案文档',
-      '进行本地全面端到端自测核验与边界审查',
-      '同步进展给团队并沉淀文档至备忘录',
-    ];
-    dueDays = 1;
-  } else if (/健身|跑|减脂|运动|瑜伽|深蹲|有氧|锻炼|热量/.test(lower)) {
-    category = 'health';
-    priority = 'medium';
-    title = cleanPrompt.startsWith('【') ? cleanPrompt : `【活力健身】${cleanPrompt}`;
-    subtasks = [
-      '准备运动水壶、运动服及动态拉伸热身 5 分钟',
-      '完成核心力量训练组（3 组 × 12 次目标动作）',
-      '配合 20 分钟心肺燃脂运动（慢跑或单车）',
-      '全身放松拉伸恢复并记录饮水量与心率',
-    ];
-    dueDays = 0;
-  } else {
-    category = 'life';
-    priority = 'medium';
-    title = cleanPrompt.startsWith('【') ? cleanPrompt : `【生活待办】${cleanPrompt}`;
-    subtasks = [
-      '准备好执行所需的必备物资与时间窗口',
-      '集中专注完成最重要也是最难的第一阶段',
-      '核对完成质量并清理收尾',
-      '打勾奖励自己一份喜欢的美食或休息时光',
-    ];
-    dueDays = 2;
+  // Parse JSON strictly from LLM output
+  let textToParse = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const codeBlockMatch = textToParse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    textToParse = codeBlockMatch[1].trim();
   }
 
-  const dueDate = new Date(Date.now() + dueDays * 86400000).toISOString().split('T')[0];
+  const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
+  const durationSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000));
 
-  return {
-    title,
-    description,
-    priority,
-    category,
-    dueDate,
-    subtasks,
-  };
+  if (!jsonMatch) {
+    // If model returned bullet points text rather than strict JSON, parse lines directly from LLM
+    const lines = rawContent.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const subtasks = lines
+      .filter(l => /^(\d+\.|\-|\*|•|【步骤)/.test(l))
+      .map(l => l.replace(/^(\d+\.|\-|\*|•|【步骤\d+】)\s*/, '').trim())
+      .filter(l => l.length > 0);
+
+    return {
+      title: cleanPrompt,
+      description: lines[0] || `由大模型 [${selectedModel}] 针对「${cleanPrompt}」深度定制。`,
+      priority: 'high',
+      category: 'life',
+      dueDate: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
+      subtasks: subtasks.length > 0 ? subtasks : ['按计划启动第一阶段工作', '推进核心任务落地', '验收与复盘总结'],
+      modelUsed: selectedModel,
+      reasoningContent,
+      durationSeconds,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    const days = typeof parsed.dueDateDays === 'number' && parsed.dueDateDays >= 0 ? parsed.dueDateDays : 2;
+    const due = new Date(Date.now() + days * 86400000).toISOString().split('T')[0];
+
+    return {
+      title: parsed.title || cleanPrompt,
+      description: parsed.description || '',
+      priority: ['urgent', 'high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
+      category: ['life', 'work', 'study', 'cat', 'health'].includes(parsed.category) ? parsed.category : 'life',
+      dueDate: due,
+      subtasks: Array.isArray(parsed.subtasks) && parsed.subtasks.length > 0 ? parsed.subtasks.map(String) : ['启动核心执行步骤'],
+      modelUsed: selectedModel,
+      reasoningContent,
+      durationSeconds,
+    };
+  } catch {
+    throw new Error(`大模型 [${selectedModel}] 响应解析异常，请重新尝试规划。`);
+  }
 }
 
 // ----------------------------------------------------
@@ -822,29 +783,40 @@ export async function generateAINote({
   topic,
   style = 'guide',
   provider,
+  model,
+  signal,
+  onReasoningChunk,
 }: {
   topic: string;
   style?: 'guide' | 'essay' | 'xhs' | 'summary';
   provider?: AIProvider;
+  model?: string;
+  signal?: AbortSignal;
+  onReasoningChunk?: (chunk: string) => void;
 }): Promise<GeneratedNoteOutput> {
   const cleanTopic = topic.trim();
   if (!cleanTopic) {
     throw new Error('请输入你想要撰写的笔记主题或构思');
   }
 
-  // 1. LLM Generation
-  if (provider && provider.apiKey) {
-    try {
-      const styleDesc = {
-        guide: '干货结构化指南（使用清晰章节、列表、关键要点与实践建议）',
-        essay: '优美深邃随笔感悟（文笔温润细腻，富有思考深度）',
-        xhs: '小红书爆款图文体（吸引人的开篇、丰富 Emoji、分段短小精悍）',
-        summary: '极简行动复盘清单（目标、成效、问题、下一步待办）',
-      }[style] || '高质量 Markdown 笔记';
+  const allProviders = typeof window !== 'undefined' ? (window as any).__MAOBU_PROVIDERS__ || [] : [];
+  const activeProvider = provider || allProviders.find((p: AIProvider) => p.isActive) || DEFAULT_CUSTOM_PROVIDER;
 
-      const systemPrompt = `你是一位高审美、擅长写作的专业知识博主与资深笔记专家。
-请根据用户的主题：“${cleanTopic}”以及风格要求：“${styleDesc}”，撰写一篇排版优美、内容扎实的完整 Markdown 笔记。
-必须返回纯 JSON 格式对象，不要包含 markdown 标记或任何其他文本：
+  if (!activeProvider || !activeProvider.apiKey || !activeProvider.apiKey.trim()) {
+    throw new Error('未配置有效的大模型 API Key。请前往「AI 伴侣」->「模型配置」填写或配置有效 API 密钥。');
+  }
+
+  const selectedModel = model || activeProvider.defaultModel || 'deepseek-v4-flash';
+  const styleDesc = {
+    guide: '干货结构化指南（使用清晰章节、列表、关键要点与实践建议）',
+    essay: '优美深邃随笔感悟（文笔温润细腻，富有思考深度）',
+    xhs: '小红书爆款图文体（吸引人的开篇、丰富 Emoji、分段短小精悍）',
+    summary: '极简行动复盘清单（目标、成效、问题、下一步待办）',
+  }[style] || '高质量 Markdown 笔记';
+
+  const systemPrompt = `你是一位高审美、擅长写作的专业知识博主与资深笔记专家。
+请根据用户的主题：“${cleanTopic}”以及风格要求：“${styleDesc}”，撰写一篇排版优美、内容扎实、结构清晰的完整 Markdown 笔记。
+必须直接返回纯合法的 JSON 格式对象，不要包含 markdown 标记或任何其他文本：
 {
   "title": "笔记标题（醒目文雅）",
   "category": "生活" | "工作" | "学习" | "灵感" | "代码" | "指南",
@@ -852,190 +824,58 @@ export async function generateAINote({
   "content": "完整的 Markdown 格式正文内容（包含 # 标题、> 引用、**加粗**、- 列表等排版）"
 }`;
 
-      const payload = {
-        model: provider.defaultModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `主题：${cleanTopic}` },
-        ],
-        temperature: 0.7,
-      };
+  let rawContent = '';
 
-      const url = `${provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
-      let res: Response;
-      try {
-        res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${provider.apiKey}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      } catch {
-        res = await fetch('/api/ai-proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${provider.apiKey}`,
-            },
-            body: payload,
-          }),
-        });
-      }
-
-      if (res.ok) {
-        const json = await res.json();
-        const content = json.choices?.[0]?.message?.content || '';
-        const match = content.match(/\{[\s\S]*\}/);
-        if (match) {
-          const parsed = JSON.parse(match[0]);
-          return {
-            title: parsed.title || cleanTopic,
-            category: parsed.category || '灵感',
-            tags: Array.isArray(parsed.tags) ? parsed.tags : ['灵感', '笔记'],
-            content: parsed.content || '',
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('LLM note generation failed, fallback to smart template:', e);
-    }
+  try {
+    const streamRes = await streamChatCompletion({
+      provider: activeProvider,
+      model: selectedModel,
+      messages: [
+        { role: 'user', content: `请撰写主题为：“${cleanTopic}”的笔记内容` }
+      ],
+      systemPrompt,
+      signal,
+      onChunk: delta => {
+        rawContent += delta;
+      },
+      onReasoningChunk: onReasoningChunk,
+    });
+    rawContent = streamRes.content || rawContent;
+  } catch (err: any) {
+    const friendly = formatFriendlyAIError(err.message || String(err));
+    throw new Error(`大模型 [${selectedModel}] 笔记生成失败: ${friendly}`);
   }
 
-  // 2. Offline Smart Template Engine
-  const lower = cleanTopic.toLowerCase();
-  let title = cleanTopic;
-  let category = '生活';
-  let tags = ['生活', '随笔'];
-  let content = '';
-
-  if (/猫|狗|宠|咪|疫苗|绝育|幼猫|梳毛/.test(lower)) {
-    title = cleanTopic.startsWith('🐾') || cleanTopic.startsWith('🐱') ? cleanTopic : `🐾 ${cleanTopic}：科学养育与暖心指南`;
-    category = '指南';
-    tags = ['萌宠', '养护', '健康'];
-    content = `# ${title}
-
-> 每一个毛茸茸的小生命，都值得被温柔与科学相待。
-
-## 🐱 一、科学饮食与营养摄入
-- **优质主粮**：优先选择高动物蛋白、0谷物的配方主粮；
-- **饮水管理**：猫咪天生不爱喝水，建议配置**流动活水饮水机**，并每日搭配适量主食罐补充水分；
-- **零食分量**：冻干与零食占比不超过每日摄入总热量的 **10%**。
-
-## 🩺 二、日常护理与环境丰容
-1. **每日梳毛**：使用排梳进行 10~15 分钟梳理，不仅能防毛球，更能极大增进感情；
-2. **垂直空间**：猫爬架、猫抓板与窗边眺望台是满足其捕猎天性的必备环境；
-3. **猫砂盆维护**：保持数量为“猫咪数 + 1”，每日至少早晚铲砂两次。
-
-## 💡 三、健康体检红线指标
-- **警惕信号**：若出现连续 24 小时未进食、频繁蹲盆无尿、精神嗜睡，必须立即就医；
-- **常备急救箱**：益生菌、生理盐水、碘伏棉棒、宠物专用体温计。
-
----
-*记录于【猫步可爱】· 陪伴猫咪每一天的健康成长*`;
-  } else if (/react|vue|ts|typescript|前端|架构|代码|全栈|性能|next|vite/.test(lower)) {
-    title = cleanTopic.startsWith('💻') ? cleanTopic : `💻 ${cleanTopic}：核心架构实战演进`;
-    category = '代码';
-    tags = ['前端', '架构', '最佳实践'];
-    content = `# ${title}
-
-> “好的架构不是设计出来的，而是在工程约束中演进出来的。”
-
-## 🚀 一、设计原则与核心范式
-- **关注点分离 (Separation of Concerns)**：将纯展示组件与数据处理 Hook / Engine 彻底解耦；
-- **Local-First 优先**：先完成客户端状态更新与即时反馈，后台异步进行网络持久化；
-- **防御性异常兜底**：任何外部 I/O 与 API 调用必须具备超时阻断与优雅降级。
-
-## 📦 二、核心实现模式
-\`\`\`typescript
-// 优雅的状态机与数据订阅范式
-export function useResponsiveState<T>(initial: T) {
-  const [data, setData] = useState<T>(initial);
-  
-  const updateSafely = useCallback((patch: Partial<T>) => {
-    setData(prev => ({ ...prev, ...patch }));
-  }, []);
-
-  return [data, updateSafely] as const;
-}
-\`\`\`
-
-## ⚡ 三、性能基准与度量
-1. **渲染控制**：避免在高频交互组件中无端使用大粒度 Context；
-2. **包体积预算**：严格控制外部第三方依赖，优先利用 Web 原生 API。
-
----
-*记录于【猫步可爱】· 现代全栈技术沉淀*`;
-  } else if (/文案|小红书|营销|爆款|吸引力|标题|带货/.test(lower)) {
-    title = cleanTopic.startsWith('🎨') ? cleanTopic : `🎨 ${cleanTopic}：爆款文案架构与吸睛公式`;
-    category = '灵感';
-    tags = ['文案', '创作', '小红书'];
-    content = `# ${title}
-
-🔥 **爆款的底层逻辑：情绪共鸣 > 逻辑说服**
-
-## 💡 一、神仙标题黄金公式
-1. **痛点唤醒型**：“别再盲目跟风了！普通人必须知道的 3 个真相”；
-2. **反常识型**：“越努力越迷茫？可能是你搞错了核心指标”；
-3. **极简干货型**：“建议收藏！一分钟理清所有核心流程”。
-
-## 📝 二、黄金正文 4 段式
-- **【黄金 3 秒钩子】**：抛出共鸣场景，快速拉近距离；
-- **【核心痛点剖析】**：指出为什么过去的方法收效甚微；
-- **【切实解法清单】**：给出 1、2、3 步立竿见影的实操步骤；
-- **【互动收尾】**：“你平时最习惯用哪种方法？评论区聊聊看~”。
-
----
-*记录于【猫步可爱】· 创意文案与灵感火花*`;
-  } else if (/读书|思考|心智|哲学|认知|复盘|纳瓦尔/.test(lower)) {
-    title = cleanTopic.startsWith('📚') ? cleanTopic : `📚 ${cleanTopic}：心智模型与认知跃迁`;
-    category = '学习';
-    tags = ['读书', '思考', '认知'];
-    content = `# ${title}
-
-> “你的思想构建了你的世界，而专注力是你最宝贵的资产。”
-
-## 🌟 一、核心启发点
-- **第一性原理**：回归事物最基础的本质，剥离外部噪音；
-- **逆向思维**：不仅要思考“如何成功”，更要时刻警惕“怎样一定会失败”；
-- **长期主义杠杆**：在具有复利效应的事物上持续深耕（健康、知识与代码）。
-
-## 📋 二、行动落地准则
-1. 每天保留 30 分钟无干扰的深度思考与笔记时间；
-2. 用“教是最好的学（费曼技巧）”来检验是否真正掌握；
-3. 定期清理信息摄入，警惕短视碎片化内容侵蚀专注力。
-
----
-*记录于【猫步可爱】· 保持思考与终身成长*`;
-  } else {
-    title = cleanTopic.startsWith('📝') ? cleanTopic : `📝 ${cleanTopic}：灵感随笔与备忘`;
-    category = '生活';
-    tags = ['随笔', '备忘'];
-    content = `# ${title}
-
-> 记录平凡生活里的微光与闪念。
-
-## ✨ 一、核心想法与初衷
-记录关于 **${cleanTopic}** 的所思所想，理清思路，让内心沉淀下来。
-
-## 🌿 二、重点记录
-- 保持专注与松弛感的平衡；
-- 按自己的节奏踏实迈出猫步；
-- 记录当下，享受每一个过程。
-
----
-*记录于【猫步可爱】*`;
+  let textToParse = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const codeBlockMatch = textToParse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    textToParse = codeBlockMatch[1].trim();
   }
 
-  return {
-    title,
-    category,
-    tags,
-    content,
-  };
+  const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    return {
+      title: cleanTopic,
+      category: '灵感',
+      tags: ['AI生成', '灵感'],
+      content: rawContent,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      title: parsed.title || cleanTopic,
+      category: parsed.category || '灵感',
+      tags: Array.isArray(parsed.tags) && parsed.tags.length > 0 ? parsed.tags : ['灵感', '笔记'],
+      content: parsed.content || rawContent,
+    };
+  } catch {
+    return {
+      title: cleanTopic,
+      category: '灵感',
+      tags: ['AI生成', '笔记'],
+      content: rawContent,
+    };
+  }
 }

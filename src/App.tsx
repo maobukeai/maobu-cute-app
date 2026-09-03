@@ -135,6 +135,7 @@ export const App: React.FC = () => {
             plans={plans}
             onUpdatePlans={setPlans}
             accentColor={settings.accentColor}
+            onSwitchToAITab={() => handleSelectTab('ai')}
           />
         )}
 
