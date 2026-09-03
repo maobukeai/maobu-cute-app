@@ -18,7 +18,23 @@ class SoundManager {
     return this.audioCtx;
   }
 
+  toggleSound(enabled?: boolean) {
+    if (typeof enabled === 'boolean') {
+      this.isEnabled = enabled;
+    } else {
+      this.isEnabled = !this.isEnabled;
+    }
+  }
+
+  playCelebration() {
+    this.playSuccess();
+  }
+
   // iOS-style soft tap / button click
+  playPurr() {
+    this.playCatPurr();
+  }
+
   playTap() {
     if (!this.isEnabled) return;
     try {
@@ -129,6 +145,33 @@ class SoundManager {
 
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Soft error / warning tone
+  playError() {
+    if (!this.isEnabled) return;
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.15);
+
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
     } catch {
       // ignore
     }

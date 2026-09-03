@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppTab, AccentColor } from '../types';
-import { Sparkles, Plus } from 'lucide-react';
+import { Sparkles, Plus, Heart } from 'lucide-react';
 import { sound } from '../utils/sound';
 
 interface TopHeaderProps {
@@ -18,6 +18,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   titleOverride,
   subtitleOverride,
 }) => {
+  const [showCatLove, setShowCatLove] = useState(false);
+
   const getTabTitle = () => {
     if (titleOverride) return titleOverride;
     switch (activeTab) {
@@ -57,48 +59,61 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const getAccentBg = () => {
     switch (accentColor) {
       case 'catpaw':
-        return 'bg-[#FF6B8B] text-white';
+        return 'bg-gradient-to-r from-[#FF6080] to-[#FF85A1] text-white shadow-[0_4px_14px_rgba(255,96,128,0.35)]';
       case 'apple':
-        return 'bg-[#007AFF] text-white';
+        return 'bg-gradient-to-r from-[#0A84FF] to-[#5AC8FA] text-white shadow-[0_4px_14px_rgba(10,132,255,0.35)]';
       case 'orange':
-        return 'bg-[#FF9500] text-white';
+        return 'bg-gradient-to-r from-[#FF9500] to-[#FFAA33] text-white shadow-[0_4px_14px_rgba(255,149,0,0.35)]';
       case 'purple':
-        return 'bg-[#AF52DE] text-white';
+        return 'bg-gradient-to-r from-[#AF52DE] to-[#C77DFF] text-white shadow-[0_4px_14px_rgba(175,82,222,0.35)]';
       case 'wechat':
       default:
-        return 'bg-[#07C160] text-white';
+        return 'bg-gradient-to-r from-[#07C160] to-[#34D399] text-white shadow-[0_4px_14px_rgba(7,193,96,0.35)]';
     }
   };
 
   const handleAvatarClick = () => {
     sound.playCatPurr();
+    setShowCatLove(true);
+    setTimeout(() => setShowCatLove(false), 1400);
   };
 
   return (
-    <header className="h-[52px] glass-nav border-b border-zinc-200/70 dark:border-zinc-800/70 px-4 flex items-center justify-between z-20 shrink-0 select-none">
+    <header className="glass-nav border-b border-zinc-200/60 dark:border-white/5 px-4 flex items-center justify-between z-20 shrink-0 select-none transition-colors pt-[env(safe-area-inset-top,0px)] h-[calc(54px+env(safe-area-inset-top,0px))] box-border">
       {/* Left branding with cute animated cat avatar */}
-      <div className="flex items-center space-x-2.5">
-        <button
-          onClick={handleAvatarClick}
-          className="relative group p-0.5 rounded-full hover:scale-105 active:scale-95 transition-transform"
-          title="点击摸摸猫猫 🐾"
-        >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-400 via-rose-300 to-amber-200 flex items-center justify-center text-sm shadow-sm ring-2 ring-white/60 dark:ring-zinc-700/60 overflow-hidden">
-            🐱
-          </div>
-          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-white dark:ring-zinc-900"></span>
-        </button>
+      <div className="flex items-center space-x-3">
+        <div className="relative">
+          <button
+            onClick={handleAvatarClick}
+            className="relative group p-0.5 rounded-full tactile-press"
+            title="点击摸摸猫猫 🐾"
+          >
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-pink-400 via-rose-300 to-amber-200 flex items-center justify-center text-base shadow-sm ring-2 ring-white/80 dark:ring-zinc-700/80 overflow-hidden animate-cat-float">
+              🐱
+            </div>
+            {/* Online breathing dot */}
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-zinc-900 shadow-sm"></span>
+          </button>
+
+          {/* Floating Heart Tooltip */}
+          {showCatLove && (
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-lg animate-scale-in whitespace-nowrap z-50 pointer-events-none">
+              <Heart className="w-2.5 h-2.5 fill-current animate-ping" />
+              <span>呼噜呼噜 🐾</span>
+            </div>
+          )}
+        </div>
 
         <div className="flex flex-col text-left">
           <div className="flex items-center space-x-1.5">
-            <h1 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 leading-none">
+            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight leading-none">
               {getTabTitle()}
             </h1>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 font-medium">
+            <span className="text-[9.5px] px-1.5 py-0.5 rounded-full bg-pink-100/80 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 font-medium tracking-wide">
               猫步可爱
             </span>
           </div>
-          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight mt-0.5">
+          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-normal leading-tight mt-1">
             {getTabSubtitle()}
           </span>
         </div>
@@ -112,7 +127,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               sound.playTap();
               onQuickAdd();
             }}
-            className={`w-7 h-7 rounded-full flex items-center justify-center ${getAccentBg()} shadow-sm hover:opacity-90 active:scale-90 transition-all`}
+            className={`w-7 h-7 rounded-full flex items-center justify-center ${getAccentBg()} hover:opacity-95 tactile-press`}
             title="新建"
           >
             <Plus className="w-4 h-4" />

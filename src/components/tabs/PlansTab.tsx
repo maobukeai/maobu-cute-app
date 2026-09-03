@@ -564,23 +564,23 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas transition-colors">
       {/* Scrollable Container */}
       <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 pb-24">
         {/* Quick Search Bar */}
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="搜索任务标题、描述或子步骤..."
-            className="w-full pl-8 pr-8 py-2 text-xs rounded-2xl bg-white/90 dark:bg-zinc-800/90 border border-zinc-200/70 dark:border-zinc-700/60 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-[#07C160]/40 shadow-xs transition-all"
+            placeholder="搜索任务标题、描述或细化微步骤..."
+            className="w-full pl-9 pr-8 py-2.5 text-xs rounded-2xl bg-white/90 dark:bg-[#1A1A22]/90 border border-zinc-200/60 dark:border-white/5 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-[var(--theme-accent)]/30 shadow-ios-sm backdrop-blur-md transition-all"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-zinc-200/70 dark:bg-zinc-700 text-zinc-500 hover:text-zinc-800 text-[11px]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full bg-zinc-200/70 dark:bg-zinc-700 text-zinc-500 hover:text-zinc-800 text-[11px] tactile-press"
             >
               ✕
             </button>
@@ -588,39 +588,69 @@ export const PlansTab: React.FC<PlansTabProps> = ({
         </div>
 
         {/* Daily Motivation & Bento Dashboard Card (Apple Health/WeChat style) */}
-        <div className="glass-card p-4 rounded-3xl shadow-sm border border-white/80 dark:border-zinc-800/90 bg-white/95 dark:bg-zinc-900/95 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0 pr-3">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">今日成就进度</span>
-                <span className="text-xs font-black text-[#07C160] px-2 py-0.5 rounded-full bg-[#E8F8F0] dark:bg-[#07C160]/20">
-                  {completedCount} / {totalCount} 项 ({progressPercent}%)
+        <div className="cat-card p-4 space-y-3 relative overflow-hidden">
+          {/* Subtle Ambient Light Decoration */}
+          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[var(--theme-accent)]/10 blur-2xl pointer-events-none"></div>
+
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+              {/* Circular Progress Indicator with Cat Paw */}
+              <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
+                <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-zinc-100 dark:text-zinc-800"
+                    strokeWidth="3.5"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="transition-all duration-700 ease-out"
+                    strokeWidth="3.5"
+                    strokeDasharray={`${progressPercent}, 100`}
+                    strokeLinecap="round"
+                    stroke="var(--theme-accent, #07C160)"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <span className="absolute text-base pointer-events-none select-none">
+                  {progressPercent === 100 ? '👑' : '🐾'}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 truncate">
-                {progressPercent === 100
-                  ? '🎉 太棒了！全部计划已圆满达成喵~'
-                  : progressPercent >= 50
-                  ? '🐾 已经完成大半啦，继续保持冲劲！'
-                  : '迈出轻巧猫步，专注完成每一个微小目标~'}
-              </p>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">今日成就进度</span>
+                  <span className="text-[11px] font-extrabold text-[var(--theme-accent,#07C160)] px-2 py-0.5 rounded-full bg-[var(--theme-accent-light,#E8F8F0)] dark:bg-[var(--theme-accent,#07C160)]/15">
+                    {completedCount} / {totalCount} 项 ({progressPercent}%)
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                  {progressPercent === 100
+                    ? '🎉 太棒了！全部计划已圆满达成喵~'
+                    : progressPercent >= 50
+                    ? '🐾 已经完成大半啦，继续保持冲劲！'
+                    : '迈出轻巧猫步，专注完成每一个微小目标~'}
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2 shrink-0">
+            <div className="flex items-center space-x-2 shrink-0 relative z-10">
               {/* AI Assistant Generator */}
               <button
                 onClick={handleOpenAIPlanner}
-                className="flex items-center space-x-1.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:from-purple-600 hover:to-rose-500 text-white font-bold text-xs shadow-sm active:scale-95 transition-all"
+                className="flex items-center space-x-1 px-3 py-2 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:opacity-95 text-white font-bold text-xs shadow-sm tactile-press"
                 title="AI 智能规划任务"
               >
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                <span>AI 规划</span>
+                <span>AI规划</span>
               </button>
 
               {/* Manual Add Button */}
               <button
                 onClick={handleOpenAdd}
-                className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] hover:brightness-105 text-white shadow-sm active:scale-95 flex items-center justify-center transition-all"
+                className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] hover:brightness-105 text-white shadow-sm flex items-center justify-center tactile-press"
                 title="手动添加新计划"
               >
                 <Plus className="w-5 h-5 stroke-[2.5]" />
@@ -629,30 +659,30 @@ export const PlansTab: React.FC<PlansTabProps> = ({
           </div>
 
           {/* Progress Bar Track */}
-          <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-[#07C160] via-emerald-400 to-[#FF6B8B] rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-[var(--theme-accent,#07C160)] to-rose-400 rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           {/* Micro Stat Badges */}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5 text-center">
-            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
+            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
               <div className="text-[10px] text-zinc-400">总计划</div>
-              <div className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{totalCount}</div>
+              <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{totalCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
-              <div className="text-[10px] text-amber-500">待完成</div>
+            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+              <div className="text-[10px] text-amber-500 font-medium">待完成</div>
               <div className="text-xs font-bold text-amber-600 dark:text-amber-400">{pendingCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
-              <div className="text-[10px] text-rose-500">紧急</div>
+            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+              <div className="text-[10px] text-rose-500 font-medium">紧急</div>
               <div className="text-xs font-bold text-rose-600 dark:text-rose-400">{urgentCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-xl p-1.5">
-              <div className="text-[10px] text-[#07C160]">已达成</div>
-              <div className="text-xs font-bold text-[#07C160]">{completedCount}</div>
+            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+              <div className="text-[10px] text-emerald-500 font-medium">今日到期</div>
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{todayDueCount}</div>
             </div>
           </div>
         </div>
@@ -669,48 +699,51 @@ export const PlansTab: React.FC<PlansTabProps> = ({
             { id: 'study', label: '📚 学习' },
             { id: 'health', label: '🏃 健身' },
             { id: 'cat', label: '🐱 萌宠' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                sound.playTap();
-                setFilter(tab.id);
-              }}
-              className={`px-3 py-1.5 rounded-full whitespace-nowrap transition-all font-medium text-xs ${
-                filter === tab.id
-                  ? 'bg-[#07C160] text-white shadow-xs font-semibold'
-                  : 'bg-white/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map(tab => {
+            const isActive = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  sound.playTap();
+                  setFilter(tab.id);
+                }}
+                className={`px-3 py-1.5 rounded-full whitespace-nowrap transition-all text-xs tactile-press ${
+                  isActive
+                    ? 'bg-[var(--theme-accent,#07C160)] text-white font-semibold shadow-[0_2px_10px_rgba(7,193,96,0.3)]'
+                    : 'bg-white/80 dark:bg-[#1A1A22]/80 text-zinc-600 dark:text-zinc-300 border border-zinc-200/50 dark:border-white/5 hover:bg-white dark:hover:bg-zinc-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Plan List */}
         {filteredPlans.length === 0 ? (
-          <div className="py-14 flex flex-col items-center justify-center text-center space-y-3 select-none bg-white/60 dark:bg-zinc-900/60 rounded-3xl border border-dashed border-zinc-300 dark:border-zinc-800">
-            <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-3xl shadow-inner">
+          <div className="py-14 flex flex-col items-center justify-center text-center space-y-3 select-none bg-white/70 dark:bg-[#18181F]/70 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800/80 shadow-ios-sm">
+            <div className="w-16 h-16 rounded-full bg-zinc-100/80 dark:bg-zinc-800/80 flex items-center justify-center text-3xl shadow-inner animate-cat-float">
               🐾
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+              <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
                 {searchQuery ? '没有找到符合搜索的计划喵~' : '当前分类暂无计划喵~'}
               </p>
-              <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-xs">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-xs leading-relaxed">
                 专注当下，迈出轻巧猫步。你可以让大模型为你规划，或手动制定新目标。
               </p>
             </div>
-            <div className="flex items-center space-x-2 pt-2">
+            <div className="flex items-center space-x-2.5 pt-2">
               <button
                 onClick={handleOpenAIPlanner}
-                className="px-3.5 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-semibold text-xs shadow-xs transition"
+                className="px-4 py-2 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-95 text-white font-bold text-xs shadow-sm tactile-press"
               >
                 ✨ AI 智能规划
               </button>
               <button
                 onClick={handleOpenAdd}
-                className="px-3.5 py-1.5 rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold text-xs transition"
+                className="px-4 py-2 rounded-2xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold text-xs border border-zinc-200/60 dark:border-white/5 tactile-press"
               >
                 + 手动添加计划
               </button>
@@ -728,25 +761,25 @@ export const PlansTab: React.FC<PlansTabProps> = ({
               return (
                 <div
                   key={plan.id}
-                  className={`glass-card p-4 rounded-3xl shadow-sm border transition-all duration-200 ${
+                  className={`cat-card p-4 transition-all duration-200 ${
                     plan.isCompleted
-                      ? 'border-zinc-200/50 dark:border-zinc-800/50 opacity-65 bg-zinc-50/50 dark:bg-zinc-900/40'
+                      ? 'opacity-65 bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-white/5'
                       : plan.priority === 'urgent'
-                      ? 'border-rose-200 dark:border-rose-900/60 bg-gradient-to-br from-rose-50/30 via-white dark:from-rose-950/20 dark:via-zinc-900 shadow-rose-100/50 dark:shadow-none'
+                      ? 'border-rose-200/80 dark:border-rose-900/50 bg-gradient-to-br from-rose-50/40 via-white to-rose-50/20 dark:from-rose-950/25 dark:via-[#18181E] dark:to-transparent'
                       : plan.priority === 'high'
-                      ? 'border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/30 via-white dark:from-amber-950/20 dark:via-zinc-900 shadow-amber-100/50 dark:shadow-none'
-                      : 'border-white/80 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95'
+                      ? 'border-amber-200/80 dark:border-amber-900/50 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 dark:from-amber-950/25 dark:via-[#18181E] dark:to-transparent'
+                      : ''
                   }`}
                 >
                   <div className="flex items-start justify-between space-x-3">
                     {/* Big Comfortable Checkbox (min 44px tap zone) */}
                     <button
                       onClick={() => handleToggleComplete(plan.id, plan.isCompleted)}
-                      className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-[#07C160] active:scale-95 transition-all shrink-0"
+                      className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-[var(--theme-accent,#07C160)] active:scale-95 transition-all shrink-0 tactile-press"
                       title={plan.isCompleted ? '标记为未完成' : '标记为已完成'}
                     >
                       {plan.isCompleted ? (
-                        <CheckCircle2 className="w-6 h-6 text-[#07C160] fill-[#E8F8F0] dark:fill-transparent" />
+                        <CheckCircle2 className="w-6 h-6 text-[var(--theme-accent,#07C160)] fill-[var(--theme-accent-light,#E8F8F0)] dark:fill-transparent" />
                       ) : (
                         <Circle className="w-6 h-6 hover:scale-110 transition-transform" />
                       )}
@@ -820,15 +853,15 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                             {plan.subtasks.map(st => (
                               <div
                                 key={st.id}
-                                className="group flex items-center justify-between p-1.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-800/40 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/70 transition"
+                                className="group flex items-center justify-between p-2 rounded-xl bg-zinc-50/90 dark:bg-[#1E1E26] hover:bg-zinc-100/90 dark:hover:bg-[#252530] border border-zinc-200/40 dark:border-white/5 transition"
                               >
                                 <div
                                   onClick={() => handleToggleSubtask(plan.id, st.id)}
                                   className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer flex-1 min-w-0"
                                 >
-                                  <span className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] border transition ${
+                                  <span className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] border font-bold transition-all ${
                                     st.isDone
-                                      ? 'bg-[#07C160] border-[#07C160] text-white'
+                                      ? 'bg-[var(--theme-accent,#07C160)] border-[var(--theme-accent,#07C160)] text-white shadow-xs'
                                       : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
                                   }`}>
                                     {st.isDone ? '✓' : ''}
@@ -839,10 +872,10 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                                 </div>
                                 <button
                                   onClick={e => handleQuickRemoveSubtask(plan.id, st.id, e)}
-                                  className="p-1 text-zinc-300 hover:text-red-500 rounded-lg transition"
+                                  className="p-1 text-zinc-300 hover:text-red-500 rounded-lg transition tactile-press"
                                   title="删除此步骤"
                                 >
-                                  <X className="w-3 h-3" />
+                                  <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             ))}
@@ -855,12 +888,12 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                                 onChange={e => setInlineSubtaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))}
                                 onKeyDown={e => e.key === 'Enter' && handleQuickAddSubtask(plan.id)}
                                 placeholder="+ 添加执行微步骤..."
-                                className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-zinc-800 dark:text-zinc-200 outline-none placeholder:text-zinc-400 focus:ring-1 focus:ring-[#07C160]"
+                                className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100/90 dark:bg-[#1E1E26] border border-zinc-200/50 dark:border-white/5 text-zinc-800 dark:text-zinc-200 outline-none placeholder:text-zinc-400 focus:ring-1 focus:ring-[var(--theme-accent,#07C160)] transition-all"
                               />
                               <button
                                 onClick={() => handleQuickAddSubtask(plan.id)}
                                 disabled={!inlineSubtaskInputs[plan.id]?.trim()}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[#07C160] hover:bg-[#06AD56] rounded-xl shadow-xs active:scale-95 transition disabled:opacity-40"
+                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[var(--theme-accent,#07C160)] hover:opacity-90 rounded-xl shadow-xs transition disabled:opacity-40 tactile-press"
                               >
                                 添加
                               </button>
@@ -875,7 +908,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                       <button
                         onClick={e => handleAIDecomposeExisting(plan, e)}
                         disabled={aiDecomposingPlanId === plan.id}
-                        className="p-2 text-purple-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all"
+                        className="p-2 text-purple-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all tactile-press"
                         title="AI 智能拆解执行微步骤"
                       >
                         {aiDecomposingPlanId === plan.id ? (
@@ -886,14 +919,14 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                       </button>
                       <button
                         onClick={e => handleOpenEdit(plan, e)}
-                        className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all"
+                        className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all tactile-press"
                         title="编辑"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={e => handleDeletePlan(plan.id, e)}
-                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all"
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all tactile-press"
                         title="删除"
                       >
                         <Trash2 className="w-4 h-4" />

@@ -41,6 +41,7 @@ import {
   streamChatCompletion,
   formatFriendlyAIError,
 } from '../../utils/ai';
+import { MarkdownPreview } from '../MarkdownPreview';
 
 interface NotesTabProps {
   notes: NoteItem[];
@@ -469,6 +470,21 @@ export const NotesTab: React.FC<NotesTabProps> = ({
     setFormContent(newContent);
   };
 
+  // Toggle todo item in formContent when clicking in preview mode
+  const handleToggleTodoInPreview = (lineIndex: number) => {
+    const lines = formContent.split('\n');
+    if (lineIndex < 0 || lineIndex >= lines.length) return;
+    const targetLine = lines[lineIndex];
+    if (/^[-*]\s+\[ \]\s+/.test(targetLine)) {
+      lines[lineIndex] = targetLine.replace(/^([-*]\s+)\[ \]/, '$1[x]');
+      sound.playSuccess();
+    } else if (/^[-*]\s+\[[xX]\]\s+/.test(targetLine)) {
+      lines[lineIndex] = targetLine.replace(/^([-*]\s+)\[[xX]\]/, '$1[ ]');
+      sound.playTap();
+    }
+    setFormContent(lines.join('\n'));
+  };
+
   // Export note to file
   const handleExportNote = (note: NoteItem, format: 'md' | 'txt') => {
     sound.playTap();
@@ -491,22 +507,22 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas transition-colors">
       {/* Search & Top Action Bar */}
-      <div className="p-3 bg-white/70 dark:bg-[#1C1C1E]/70 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/60 space-y-2 shrink-0">
+      <div className="p-3 bg-white/80 dark:bg-[#15151C]/80 backdrop-blur-2xl border-b border-zinc-200/60 dark:border-white/5 space-y-2.5 shrink-0">
         <div className="flex items-center space-x-2">
-          {/* WeChat style soft search box */}
-          <div className="flex-1 flex items-center px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-xs text-zinc-800 dark:text-zinc-200">
+          {/* iOS soft search box */}
+          <div className="flex-1 flex items-center px-3.5 py-2 bg-zinc-100/90 dark:bg-[#1F1F27] rounded-2xl text-xs text-zinc-800 dark:text-zinc-200 border border-zinc-200/50 dark:border-white/5 shadow-ios-sm">
             <Search className="w-3.5 h-3.5 text-zinc-400 mr-2 shrink-0" />
             <input
               type="text"
               placeholder="搜索标题、正文、标签..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="bg-transparent border-none outline-none w-full placeholder-zinc-400"
+              className="bg-transparent border-none outline-none w-full placeholder-zinc-400 text-xs"
             />
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="text-zinc-400 text-xs hover:text-zinc-600">
+              <button onClick={() => setSearchQuery('')} className="text-zinc-400 text-xs hover:text-zinc-600 tactile-press">
                 ✕
               </button>
             )}
@@ -515,55 +531,65 @@ export const NotesTab: React.FC<NotesTabProps> = ({
           {/* AI Note Creator */}
           <button
             onClick={handleOpenAINoteModal}
-            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:from-purple-600 hover:to-rose-500 text-white text-xs font-semibold shadow-sm active:scale-95 transition shrink-0"
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:opacity-95 text-white text-xs font-bold shadow-sm tactile-press shrink-0"
             title="AI 智能创想生成笔记"
           >
             <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-            <span>AI 写笔记</span>
+            <span>AI写笔记</span>
           </button>
 
           {/* Manual Create Note */}
           <button
             onClick={handleOpenCreate}
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-[#07C160] text-white text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition shrink-0"
+            className="flex items-center space-x-1 px-3 py-2 rounded-2xl bg-[var(--theme-accent,#07C160)] text-white text-xs font-bold shadow-sm hover:opacity-95 tactile-press shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>记笔记</span>
+            <span>新建</span>
           </button>
         </div>
 
         {/* Category Filter Chips */}
         <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 no-scrollbar text-xs">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => {
-                sound.playTap();
-                setSelectedCategory(cat);
-              }}
-              className={`px-3 py-1 rounded-full whitespace-nowrap transition-all font-medium ${
-                selectedCategory === cat
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-xs'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200'
-              }`}
-            >
-              {cat === 'all' ? '全部' : cat}
-            </button>
-          ))}
+          {categories.map(cat => {
+            const isActive = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => {
+                  sound.playTap();
+                  setSelectedCategory(cat);
+                }}
+                className={`px-3 py-1 rounded-full whitespace-nowrap transition-all text-xs font-medium tactile-press ${
+                  isActive
+                    ? 'bg-[var(--theme-accent,#07C160)] text-white shadow-sm font-semibold'
+                    : 'bg-zinc-100/90 dark:bg-[#1E1E26] text-zinc-600 dark:text-zinc-400 border border-zinc-200/50 dark:border-white/5 hover:bg-zinc-200/80 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {cat === 'all' ? '全部' : cat}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-2.5 pb-20">
         {filteredNotes.length === 0 ? (
-          <div className="py-14 flex flex-col items-center justify-center text-center space-y-2 select-none">
-            <div className="w-14 h-14 rounded-full bg-zinc-200/60 dark:bg-zinc-800/60 flex items-center justify-center text-2xl">
+          <div className="py-14 flex flex-col items-center justify-center text-center space-y-2.5 select-none bg-white/70 dark:bg-[#18181F]/70 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800/80 shadow-ios-sm">
+            <div className="w-16 h-16 rounded-full bg-zinc-100/80 dark:bg-zinc-800/80 flex items-center justify-center text-3xl shadow-inner animate-cat-float">
               📝
             </div>
-            <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">未找到相关笔记</p>
+            <div className="space-y-1">
+              <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                {searchQuery ? '没有找到符合搜索的笔记喵~' : '当前分类暂无笔记喵~'}
+              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 max-w-xs leading-relaxed">
+                记录点滴灵感与生活火花。点击右上角即可快速开启创作或由 AI 帮写。
+              </p>
+            </div>
             <button
               onClick={handleOpenCreate}
-              className="text-xs text-[#07C160] font-semibold hover:underline"
+              className="mt-1 px-4 py-2 rounded-2xl bg-[var(--theme-accent,#07C160)] text-white text-xs font-bold shadow-sm hover:opacity-95 tactile-press"
             >
               + 记录第一条灵感火花
             </button>
@@ -573,7 +599,11 @@ export const NotesTab: React.FC<NotesTabProps> = ({
             <div
               key={note.id}
               onClick={() => handleOpenEdit(note)}
-              className={`glass-card p-3.5 rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 hover:shadow-ios-hover cursor-pointer transition-all duration-200 relative group`}
+              className={`cat-card p-4 cursor-pointer transition-all duration-200 relative group tactile-press ${
+                note.isPinned
+                  ? 'border-l-4 border-l-amber-400 dark:border-l-amber-400 bg-amber-50/20 dark:bg-amber-950/10'
+                  : ''
+              }`}
             >
               {/* Top Row: Title & Badges */}
               <div className="flex items-start justify-between space-x-2">
@@ -639,21 +669,21 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               </p>
 
               {/* Meta: Category, Tags, Time */}
-              <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[10px] text-zinc-400">
+              <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-100 dark:border-white/5 text-[10.5px] text-zinc-400">
                 <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                  <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-medium">
+                  <span className="px-2 py-0.5 rounded-full bg-zinc-100/90 dark:bg-[#252530] text-zinc-700 dark:text-zinc-300 font-medium">
                     {note.category}
                   </span>
                   {Array.from(new Set(note.tags)).map((t, idx) => (
                     <span
                       key={`${t}-${idx}`}
-                      className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-500 dark:text-blue-400"
+                      className="px-2 py-0.5 rounded-full bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 font-medium"
                     >
                       #{t}
                     </span>
                   ))}
                 </div>
-                <div className="flex items-center space-x-2 shrink-0">
+                <div className="flex items-center space-x-2 shrink-0 text-zinc-400 font-mono text-[10px]">
                   <span>{note.content.length} 字</span>
                   <span>{note.updatedAt.split('T')[0]}</span>
                 </div>
@@ -665,8 +695,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({
 
       {/* Note Editor Modal */}
       {showEditor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-2xl h-[90vh] bg-white dark:bg-[#1C1C1E] rounded-3xl flex flex-col shadow-ios-modal border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-scale-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-2xl h-[90vh] bg-white dark:bg-[#15151C] rounded-[32px] flex flex-col shadow-ios-modal border border-zinc-200/80 dark:border-white/10 overflow-hidden animate-scale-in">
             {/* Modal Header */}
             <div className="h-12 px-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
@@ -1190,14 +1220,11 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                     className="w-full h-full bg-transparent border-none outline-none resize-none font-sans text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 leading-relaxed font-normal"
                   />
                 ) : (
-                  <div className="prose dark:prose-invert max-w-none text-xs sm:text-sm leading-relaxed space-y-2 select-text">
-                    {formContent ? (
-                      <div className="whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200">
-                        {formContent}
-                      </div>
-                    ) : (
-                      <p className="text-zinc-400 italic">暂无内容预览</p>
-                    )}
+                  <div className="max-w-none select-text">
+                    <MarkdownPreview
+                      content={formContent}
+                      onToggleTodo={handleToggleTodoInPreview}
+                    />
                   </div>
                 )}
               </div>
@@ -1472,8 +1499,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                 )}
 
                 {/* Markdown content preview box */}
-                <div className="max-h-48 overflow-y-auto p-3 rounded-xl bg-white dark:bg-zinc-800/80 text-xs leading-relaxed border border-purple-100 dark:border-purple-900 text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap select-text font-sans">
-                  {aiNoteResult.content}
+                <div className="max-h-56 overflow-y-auto p-3 rounded-xl bg-white dark:bg-zinc-800/80 text-xs leading-relaxed border border-purple-100 dark:border-purple-900 text-zinc-800 dark:text-zinc-200 select-text">
+                  <MarkdownPreview content={aiNoteResult.content} />
                 </div>
 
                 {/* Dual Action Buttons */}

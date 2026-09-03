@@ -50,7 +50,11 @@ import {
   Lock,
   ChevronRight,
   FileText,
+  Camera,
+  QrCode,
 } from 'lucide-react';
+import { QRScannerModal } from '../modals/QRScannerModal';
+import { parseTwoFactorQR, ParsedTwoFactor } from '../../utils/qr';
 
 interface VaultTabProps {
   passwords: PasswordItem[];
@@ -77,7 +81,15 @@ export const VaultTab: React.FC<VaultTabProps> = ({
   providers,
   accentColor,
 }) => {
-  const [subTab, setSubTab] = useState<'passwords' | '2fa' | 'hotmail' | 'google'>('passwords');
+  const [subTab, setSubTab] = useState<'passwords' | '2fa' | 'hotmail' | 'google'>(() => {
+    return (localStorage.getItem('maobu_vault_subtab') as any) || 'passwords';
+  });
+
+  const handleSwitchSubTab = (tab: 'passwords' | '2fa' | 'hotmail' | 'google') => {
+    sound.playTap();
+    setSubTab(tab);
+    localStorage.setItem('maobu_vault_subtab', tab);
+  };
 
   // Common UI feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -254,13 +266,40 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     setShow2FAModal(false);
   };
 
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
   const handleParseUri = (uri: string) => {
     setTotpUriInput(uri);
-    const parsed = parseOtpAuthUri(uri);
+    const parsed = parseTwoFactorQR(uri);
     if (parsed) {
       setTotpIssuer(parsed.issuer);
       setTotpAccount(parsed.account);
       setTotpSecret(parsed.secret);
+    }
+  };
+
+  const handleScanQRSuccess = (parsed: ParsedTwoFactor) => {
+    const exists = tokens.some(
+      t => t.secret.toUpperCase() === parsed.secret.toUpperCase() &&
+           t.account.trim().toLowerCase() === parsed.account.trim().toLowerCase()
+    );
+    if (!exists) {
+      const newToken: TwoFactorToken = {
+        id: 'totp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        issuer: parsed.issuer,
+        account: parsed.account,
+        secret: parsed.secret,
+        digits: 6,
+        period: 30,
+        algorithm: 'SHA1',
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [newToken, ...tokens];
+      onUpdateTokens(updated);
+      db.save2FATokens(updated);
+      sound.playSuccess();
+    } else {
+      sound.playTap();
     }
   };
 
@@ -488,20 +527,24 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     db.saveHotmailAccounts(updated);
   };
 
+  const handleUpdateGoogle = (updated: GoogleWarmingAccount[]) => {
+    if (onUpdateGoogleAccounts) {
+      onUpdateGoogleAccounts(updated);
+    }
+    db.saveGoogleAccounts(updated);
+  };
+
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas transition-colors">
       {/* iOS Segmented Navigation Header */}
-      <div className="p-3 bg-white/70 dark:bg-[#1C1C1E]/70 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/60 shrink-0">
-        <div className="grid grid-cols-4 gap-1 bg-zinc-200/80 dark:bg-zinc-800/80 p-1 rounded-2xl text-xs select-none">
+      <div className="p-3 bg-white/80 dark:bg-[#15151C]/80 backdrop-blur-2xl border-b border-zinc-200/60 dark:border-white/5 shrink-0">
+        <div className="grid grid-cols-4 gap-1 bg-zinc-100/90 dark:bg-[#1F1F27] p-1 rounded-2xl text-xs select-none border border-zinc-200/40 dark:border-white/5 shadow-inner">
           <button
-            onClick={() => {
-              sound.playTap();
-              setSubTab('passwords');
-            }}
-            className={`py-1.5 rounded-xl font-semibold transition-all flex items-center justify-center space-x-1 ${
+            onClick={() => handleSwitchSubTab('passwords')}
+            className={`py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1 tactile-press ${
               subTab === 'passwords'
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                ? 'bg-white dark:bg-[#2A2A36] text-zinc-900 dark:text-white shadow-ios-sm font-bold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800'
             }`}
           >
             <KeyRound className="w-3.5 h-3.5 text-blue-500" />
@@ -509,14 +552,11 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              sound.playTap();
-              setSubTab('2fa');
-            }}
-            className={`py-1.5 rounded-xl font-semibold transition-all flex items-center justify-center space-x-1 ${
+            onClick={() => handleSwitchSubTab('2fa')}
+            className={`py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1 tactile-press ${
               subTab === '2fa'
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                ? 'bg-white dark:bg-[#2A2A36] text-zinc-900 dark:text-white shadow-ios-sm font-bold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-[#07C160]" />
@@ -524,14 +564,11 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              sound.playTap();
-              setSubTab('hotmail');
-            }}
-            className={`py-1.5 rounded-xl font-semibold transition-all flex items-center justify-center space-x-1 ${
+            onClick={() => handleSwitchSubTab('hotmail')}
+            className={`py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1 tactile-press ${
               subTab === 'hotmail'
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                ? 'bg-white dark:bg-[#2A2A36] text-zinc-900 dark:text-white shadow-ios-sm font-bold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800'
             }`}
           >
             <Mail className="w-3.5 h-3.5 text-[#FF6B8B]" />
@@ -539,14 +576,11 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              sound.playTap();
-              setSubTab('google');
-            }}
-            className={`py-1.5 rounded-xl font-semibold transition-all flex items-center justify-center space-x-1 ${
+            onClick={() => handleSwitchSubTab('google')}
+            className={`py-1.5 rounded-xl font-medium transition-all flex items-center justify-center space-x-1 tactile-press ${
               subTab === 'google'
-                ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                ? 'bg-white dark:bg-[#2A2A36] text-zinc-900 dark:text-white shadow-ios-sm font-bold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800'
             }`}
           >
             <Globe className="w-3.5 h-3.5 text-amber-500" />
@@ -559,7 +593,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       {subTab === 'google' ? (
         <GoogleWarmingSection
           accounts={googleAccounts || []}
-          onUpdateAccounts={onUpdateGoogleAccounts || (() => {})}
+          onUpdateAccounts={handleUpdateGoogle}
           providers={providers}
           accentColor={accentColor}
         />
@@ -633,73 +667,74 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 .map(item => {
                   const isRevealed = !!revealedPasswords[item.id];
                   return (
-                    <div
-                      key={item.id}
-                      className="glass-card p-3.5 rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 space-y-2"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
-                            <span>{item.title}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-500">
-                              {item.category}
-                            </span>
-                          </h4>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                            账号：{item.username || '(未填写用户名)'}
-                          </p>
+                      <div
+                        key={item.id}
+                        className="cat-card p-4 transition-all duration-200 space-y-2.5 relative group"
+                      >
+                        {/* Title Row */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
+                              <span>{item.title}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-500 font-medium">
+                                {item.category}
+                              </span>
+                            </h4>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                              账号：{item.username || '(未填写用户名)'}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleOpenEditPassword(item)}
+                              className="p-1.5 text-zinc-400 hover:text-blue-500 rounded-lg transition-colors tactile-press"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePassword(item.id)}
+                              className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors tactile-press"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => handleOpenEditPassword(item)}
-                            className="p-1 text-zinc-400 hover:text-blue-500"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeletePassword(item.id)}
-                            className="p-1 text-zinc-400 hover:text-red-500"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        {/* Password Field Bar */}
+                        <div className="flex items-center justify-between px-3.5 py-2.5 bg-zinc-50 dark:bg-[#121217] rounded-xl font-mono text-xs border border-zinc-200/50 dark:border-white/5">
+                          <span className="truncate text-zinc-800 dark:text-zinc-200 tracking-wider">
+                            {isRevealed ? item.password : '••••••••••••••••'}
+                          </span>
+                          <div className="flex items-center space-x-2 shrink-0 ml-2">
+                            <button
+                              onClick={() => toggleRevealPassword(item.id)}
+                              className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 tactile-press"
+                              title={isRevealed ? '隐藏密码' : '显示密码'}
+                            >
+                              {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => copyWithFeedback(item.password, item.id)}
+                              className="text-zinc-400 hover:text-[#07C160] tactile-press"
+                              title="复制密码"
+                            >
+                              {copiedId === item.id ? (
+                                <Check className="w-3.5 h-3.5 text-[#07C160]" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Notes / Website */}
+                        {item.website && (
+                          <div className="text-[11px] text-zinc-400 truncate">
+                            网站：<a href={item.website.startsWith('http') ? item.website : `https://${item.website}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{item.website}</a>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Password Field Bar */}
-                      <div className="flex items-center justify-between px-3 py-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl font-mono text-xs">
-                        <span className="truncate text-zinc-800 dark:text-zinc-200">
-                          {isRevealed ? item.password : '••••••••••••••••'}
-                        </span>
-                        <div className="flex items-center space-x-2 shrink-0 ml-2">
-                          <button
-                            onClick={() => toggleRevealPassword(item.id)}
-                            className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                            title={isRevealed ? '隐藏密码' : '显示密码'}
-                          >
-                            {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            onClick={() => copyWithFeedback(item.password, item.id)}
-                            className="text-zinc-400 hover:text-[#07C160]"
-                            title="复制密码"
-                          >
-                            {copiedId === item.id ? (
-                              <Check className="w-3.5 h-3.5 text-[#07C160]" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Notes / Website */}
-                      {item.website && (
-                        <div className="text-[11px] text-zinc-400 truncate">
-                          网站：<a href={item.website.startsWith('http') ? item.website : `https://${item.website}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{item.website}</a>
-                        </div>
-                      )}
-                    </div>
                   );
                 })
             )}
@@ -718,35 +753,66 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 <p className="text-[10px] text-zinc-500">RFC 6238 标准 · 30秒循环更新</p>
               </div>
 
-              <button
-                onClick={() => {
-                  sound.playTap();
-                  setTotpIssuer('');
-                  setTotpAccount('');
-                  setTotpSecret('');
-                  setTotpUriInput('');
-                  setShow2FAModal(true);
-                }}
-                className="px-3 py-1.5 bg-[#07C160] text-white rounded-xl text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition flex items-center space-x-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>添加 2FA</span>
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  onClick={() => {
+                    sound.playTap();
+                    setShowQRScanner(true);
+                  }}
+                  className="px-3 py-1.5 bg-[#07C160] text-white rounded-xl text-xs font-bold shadow-sm hover:bg-[#06AD56] active:scale-95 transition flex items-center space-x-1"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>扫码添加</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    sound.playTap();
+                    setTotpIssuer('');
+                    setTotpAccount('');
+                    setTotpSecret('');
+                    setTotpUriInput('');
+                    setShow2FAModal(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold hover:bg-zinc-200 active:scale-95 transition flex items-center space-x-1"
+                  title="手动输入密钥"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>手动添加</span>
+                </button>
+              </div>
             </div>
 
             {/* Token Cards */}
             {tokens.length === 0 ? (
-              <div className="py-14 text-center space-y-2 select-none">
-                <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
+              <div className="py-14 text-center space-y-3 select-none">
+                <div className="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
                   ⏱️
                 </div>
-                <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">暂无 2FA 两步验证码</p>
-                <button
-                  onClick={() => setShow2FAModal(true)}
-                  className="text-xs text-[#07C160] font-semibold hover:underline"
-                >
-                  + 添加第一条 2FA 动态令牌
-                </button>
+                <div>
+                  <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">暂无 2FA 两步验证码</p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    兼容 Google Authenticator、GitHub、Binance 等通用 RFC 6238 规范
+                  </p>
+                </div>
+                <div className="flex items-center justify-center space-x-2 pt-1">
+                  <button
+                    onClick={() => {
+                      sound.playTap();
+                      setShowQRScanner(true);
+                    }}
+                    className="px-4 py-2 bg-[#07C160] text-white rounded-xl text-xs font-bold hover:bg-[#06AD56] shadow-sm flex items-center space-x-1"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>扫码快速添加</span>
+                  </button>
+                  <button
+                    onClick={() => setShow2FAModal(true)}
+                    className="px-3 py-2 text-xs text-zinc-600 dark:text-zinc-400 font-semibold hover:underline"
+                  >
+                    手动输入密钥
+                  </button>
+                </div>
               </div>
             ) : (
               tokens.map(token => {
@@ -768,32 +834,32 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                   <div
                     key={token.id}
                     onClick={() => copyWithFeedback(data.code, token.id)}
-                    className="glass-card p-4 rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 hover:shadow-ios-hover cursor-pointer transition-all duration-200 relative group"
+                    className="cat-card p-4 cursor-pointer transition-all duration-200 relative group tactile-press border border-zinc-200/60 dark:border-white/5"
                   >
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-[11px] font-bold text-zinc-400 tracking-wider uppercase">
                           {token.issuer}
                         </span>
-                        <p className="text-xs text-zinc-600 dark:text-zinc-300 font-medium">
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 font-medium mt-0.5">
                           {token.account}
                         </p>
                       </div>
 
                       <div className="flex items-center space-x-2">
                         {/* Countdown circle animation */}
-                        <div className="relative w-7 h-7 flex items-center justify-center">
-                          <svg className="w-7 h-7 transform -rotate-90" viewBox="0 0 36 36">
+                        <div className="relative w-8 h-8 flex items-center justify-center">
+                          <svg className="w-8 h-8 transform -rotate-90" viewBox="0 0 36 36">
                             <path
-                              className="text-zinc-200 dark:text-zinc-700"
-                              strokeWidth="3"
+                              className="text-zinc-100 dark:text-zinc-800"
+                              strokeWidth="3.5"
                               stroke="currentColor"
                               fill="none"
                               d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             />
                             <path
                               stroke={ringColor}
-                              strokeWidth="3"
+                              strokeWidth="3.5"
                               strokeDasharray={`${data.progress}, 100`}
                               strokeLinecap="round"
                               fill="none"
@@ -801,7 +867,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                               className="transition-all duration-1000 linear"
                             />
                           </svg>
-                          <span className="absolute text-[9px] font-bold text-zinc-600 dark:text-zinc-300">
+                          <span className="absolute text-[9.5px] font-mono font-bold text-zinc-600 dark:text-zinc-300">
                             {data.remainingSeconds}
                           </span>
                         </div>
@@ -811,7 +877,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                             e.stopPropagation();
                             handleDelete2FA(token.id);
                           }}
-                          className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
+                          className="p-1.5 text-zinc-300 hover:text-red-500 rounded-lg transition-colors tactile-press"
                           title="删除令牌"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -820,12 +886,12 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                     </div>
 
                     {/* Big 6-digit Code Display */}
-                    <div className="mt-2.5 flex items-center justify-between">
+                    <div className="mt-3 flex items-center justify-between">
                       <div className="font-mono text-2xl font-black tracking-widest text-zinc-900 dark:text-white">
                         {formattedCode}
                       </div>
 
-                      <div className="flex items-center space-x-1 text-xs font-semibold text-[#07C160] group-hover:scale-105 transition-transform">
+                      <div className="flex items-center space-x-1.5 text-xs font-semibold text-[#07C160] transition-all">
                         {copiedId === token.id ? (
                           <>
                             <Check className="w-4 h-4" />
@@ -852,11 +918,11 @@ export const VaultTab: React.FC<VaultTabProps> = ({
         {subTab === 'hotmail' && (
           <div className="space-y-3">
             {/* Protocol Action Toolbar */}
-            <div className="flex items-center justify-between bg-white/70 dark:bg-zinc-800/70 p-3 rounded-2xl shadow-ios">
+            <div className="flex items-center justify-between cat-card p-3.5">
               <div>
                 <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
                   <span>微软 Hotmail / Outlook 协议</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-pink-100 dark:bg-pink-950/60 text-pink-600 font-semibold">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100/90 dark:bg-pink-950/60 text-pink-600 dark:text-pink-300 font-semibold">
                     支持验证码提取
                   </span>
                 </h4>
@@ -1285,15 +1351,43 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               </button>
             </div>
 
+            {/* Quick QR Scanner Trigger Banner */}
+            <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 border border-green-200/80 dark:border-green-800/50 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-[#07C160] text-white rounded-xl shadow-xs shrink-0">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                    一键扫码或识别二维码图片
+                  </div>
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                    支持摄像头实时扫描、本地截图识别与剪贴板
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playTap();
+                  setShowQRScanner(true);
+                }}
+                className="px-3 py-1.5 bg-white dark:bg-zinc-800 hover:bg-zinc-50 text-[#07C160] text-xs font-bold rounded-xl shadow-xs border border-green-200 dark:border-green-800/60 transition shrink-0"
+              >
+                立即扫码
+              </button>
+            </div>
+
             <form onSubmit={handleAdd2FAToken} className="space-y-2.5">
               <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">快速粘贴 otpauth:// 链接</label>
+                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">或快速粘贴 otpauth:// 链接 / Base32 密钥</label>
                 <input
                   type="text"
-                  placeholder="otpauth://totp/GitHub:user?secret=..."
+                  placeholder="otpauth://totp/GitHub:user?secret=... 或直接粘贴密钥"
                   value={totpUriInput}
                   onChange={e => handleParseUri(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 font-mono"
                 />
               </div>
 
@@ -1853,6 +1947,13 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* 9. 2FA QR Code Scanner Modal */}
+      <QRScannerModal
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScanSuccess={handleScanQRSuccess}
+      />
     </div>
   );
 };

@@ -1,453 +1,425 @@
-import React, { useState } from 'react';
-import { AppSettings, FullAppBackup, AccentColor, ThemeMode, DeviceFrame } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { AppSettings, ThemeMode, AccentColor, DeviceFrame } from '../../types';
 import { db } from '../../utils/storage';
 import { sound } from '../../utils/sound';
+import { WebDAVSyncCard } from '../WebDAVSyncCard';
 import {
+  Sun,
+  Moon,
+  Laptop,
   Palette,
   Volume2,
   VolumeX,
   Smartphone,
-  Monitor,
   Download,
   Upload,
-  Trash2,
-  Shield,
-  Info,
-  ChevronRight,
-  Sparkles,
+  RotateCcw,
   Check,
-  Moon,
-  Sun,
-  Laptop,
-  Globe,
+  ShieldCheck,
+  HardDrive,
+  Copy,
 } from 'lucide-react';
-import { WebDAVSyncCard } from '../WebDAVSyncCard';
-import { importGoogleAccountsFromJSON } from '../../utils/googleWarming';
 
 interface SettingsTabProps {
   settings: AppSettings;
-  onUpdateSettings: (settings: AppSettings) => void;
+  onUpdateSettings: (newSettings: AppSettings) => void;
   onRefreshAllData: () => void;
 }
+
+type SettingsSection = 'all' | 'appearance' | 'sync' | 'data';
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   settings,
   onUpdateSettings,
   onRefreshAllData,
 }) => {
-  const [copiedStatus, setCopiedStatus] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSection>('all');
+  const [copiedVersion, setCopiedVersion] = useState(false);
+  const [catMoodIndex, setCatMoodIndex] = useState(0);
 
-  // Sound toggle
-  const handleToggleSound = () => {
-    const nextVal = !settings.soundEnabled;
-    sound.isEnabled = nextVal;
-    if (nextVal) sound.playSuccess();
-    const updated: AppSettings = { ...settings, soundEnabled: nextVal };
-    onUpdateSettings(updated);
-    db.saveSettings(updated);
-  };
+  const catMoods = [
+    { text: '元气满满 😸', quote: '今天也要踏着轻巧的猫步向前走！' },
+    { text: '离线守护 🛡️', quote: '所有数据纯本地存储，绝不泄露隐私。' },
+    { text: '灵感爆棚 🐾', quote: '每一个好点子都值得被快速记录。' },
+    { text: '温暖相伴 🍵', quote: '累了就摸摸猫猫，稍作休息吧。' },
+  ];
 
-  // Theme mode toggle
-  const handleSelectTheme = (mode: ThemeMode) => {
-    sound.playToggle();
-    const updated: AppSettings = { ...settings, themeMode: mode };
-    onUpdateSettings(updated);
-    db.saveSettings(updated);
+  // Dynamic local storage metrics
+  const storageMetrics = useMemo(() => {
+    try {
+      const plans = db.getPlans();
+      const notes = db.getNotes();
+      const passwords = db.getPasswords();
+      const tokens = db.get2FATokens();
+      const hotmails = db.getHotmailAccounts();
+      const googleAccounts = db.getGoogleAccounts?.() || [];
 
-    if (mode === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else if (mode === 'light') {
-      document.documentElement.classList.remove('dark');
-    } else {
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+      let totalBytes = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('maobu_')) {
+          totalBytes += (key.length + (localStorage.getItem(key) || '').length) * 2;
+        }
       }
-    }
-  };
 
-  // Accent color selector
-  const handleSelectAccent = (accent: AccentColor) => {
+      return {
+        plansTotal: plans.length,
+        pendingPlans: plans.filter(p => !p.completedAt).length,
+        notesCount: notes.length,
+        credentialsCount: passwords.length + tokens.length,
+        cloudAccountsCount: hotmails.length + googleAccounts.length,
+        estimatedKB: Math.max(1, Math.round(totalBytes / 1024)),
+      };
+    } catch {
+      return {
+        plansTotal: 0,
+        pendingPlans: 0,
+        notesCount: 0,
+        credentialsCount: 0,
+        cloudAccountsCount: 0,
+        estimatedKB: 12,
+      };
+    }
+  }, [settings]);
+
+  // Handlers
+  const handleThemeChange = (themeMode: ThemeMode) => {
     sound.playTap();
-    const updated: AppSettings = { ...settings, accentColor: accent };
-    onUpdateSettings(updated);
-    db.saveSettings(updated);
-
-    // Update CSS custom properties
-    let hex = '#07C160';
-    let light = '#E8F8F0';
-    let bubble = '#95EC69';
-
-    if (accent === 'catpaw') {
-      hex = '#FF6B8B';
-      light = '#FFF0F3';
-      bubble = '#FF8DA6';
-    } else if (accent === 'apple') {
-      hex = '#007AFF';
-      light = '#EBF4FF';
-      bubble = '#5AC8FA';
-    } else if (accent === 'orange') {
-      hex = '#FF9500';
-      light = '#FFF6EB';
-      bubble = '#FFB340';
-    } else if (accent === 'purple') {
-      hex = '#AF52DE';
-      light = '#F8EDFF';
-      bubble = '#DA8FFF';
-    }
-
-    document.documentElement.style.setProperty('--theme-accent', hex);
-    document.documentElement.style.setProperty('--theme-accent-light', light);
-    document.documentElement.style.setProperty('--theme-bubble', bubble);
+    onUpdateSettings({ ...settings, themeMode });
   };
 
-  // Device frame toggle
+  const handleAccentChange = (accentColor: AccentColor) => {
+    sound.playTap();
+    onUpdateSettings({ ...settings, accentColor });
+  };
+
+  const handleToggleSound = () => {
+    const nextSound = !settings.soundEnabled;
+    sound.toggleSound(nextSound);
+    if (nextSound) sound.playTap();
+    onUpdateSettings({ ...settings, soundEnabled: nextSound });
+  };
+
+  const handleTestSound = () => {
+    sound.playCelebration();
+  };
+
   const handleToggleDeviceFrame = () => {
-    sound.playToggle();
+    sound.playTap();
     const nextFrame: DeviceFrame = settings.deviceFrame === 'mobile' ? 'desktop' : 'mobile';
-    const updated: AppSettings = { ...settings, deviceFrame: nextFrame };
-    onUpdateSettings(updated);
-    db.saveSettings(updated);
+    onUpdateSettings({ ...settings, deviceFrame: nextFrame });
   };
 
-  // Export Full Backup
-  const handleExportBackup = () => {
-    sound.playSuccess();
-    const backup = db.exportFullBackup();
-    const jsonStr = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `maobu_cute_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportData = () => {
+    sound.playTap();
+    try {
+      const data = db.exportFullBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `maobu_cute_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      sound.playSuccess();
+    } catch {
+      alert('导出备份失败');
+    }
   };
 
-  // Import Backup (Smart multi-format detection: Maobu Full Backup or 3D Platform Export)
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    sound.playTap();
     const reader = new FileReader();
     reader.onload = event => {
       try {
-        const text = event.target?.result as string;
-        const parsed = JSON.parse(text);
-
-        // Case 1: Standard Maobu FullAppBackup
-        if (parsed && parsed.version && (parsed.plans || parsed.notes || parsed.passwords || parsed.googleWarmingAccounts)) {
-          const success = db.importFullBackup(parsed);
-          if (success) {
-            sound.playSuccess();
-            onRefreshAllData();
-            alert('🎉 数据恢复成功！所有计划、笔记、密码、2FA、微软邮箱与谷歌养号数据已完整还原。');
-            return;
-          }
+        const json = JSON.parse(event.target?.result as string);
+        if (db.importFullBackup(json)) {
+          sound.playSuccess();
+          onRefreshAllData();
+          alert('🎉 全量数据恢复成功！');
+        } else {
+          alert('备份文件格式不兼容');
         }
-
-        // Case 2: 3D Platform Google Warming Backup (version: 1, accounts: [...]) OR raw array
-        const rawList = Array.isArray(parsed)
-          ? parsed
-          : Array.isArray(parsed.accounts)
-          ? parsed.accounts
-          : null;
-
-        if (rawList && rawList.length > 0) {
-          // Check if it's Microsoft Hotmail accounts
-          const isHotmail = rawList.some((item: any) => item.clientId || item.refreshToken);
-          if (isHotmail) {
-            const currentHotmail = db.getHotmailAccounts();
-            const existingEmailSet = new Set(currentHotmail.map(a => a.email.toLowerCase()));
-            const newHotmail = rawList.filter((item: any) => item.email && !existingEmailSet.has(item.email.toLowerCase()));
-            db.saveHotmailAccounts([...newHotmail, ...currentHotmail]);
-            sound.playSuccess();
-            onRefreshAllData();
-            alert(`🎉 成功导入 ${newHotmail.length} 个微软邮箱账号！`);
-            return;
-          } else {
-            // Google Warming accounts
-            const currentGoogle = db.getGoogleAccounts();
-            const res = importGoogleAccountsFromJSON(text, currentGoogle);
-            db.saveGoogleAccounts(res.updatedAccounts);
-            sound.playSuccess();
-            onRefreshAllData();
-            alert(`🎉 成功导入 3D 平台谷歌养号数据！\n已成功录入 ${res.importedCount} 个账号 (跳过重复 ${res.skippedCount} 个)`);
-            return;
-          }
-        }
-
-        alert('未识别到兼容的备份数据格式');
-      } catch (err: any) {
-        alert('解析备份 JSON 失败，请检查文件完整性: ' + (err.message || ''));
+      } catch {
+        alert('解析备份文件失败');
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // Clear all data
-  const handleClearAll = () => {
-    const confirmed = window.confirm(
-      '⚠️ 危险操作警告：\n确定要清空全部本地数据吗？此操作无法撤销，建议先导出备份！'
-    );
+  const handleResetData = () => {
+    sound.playTap();
+    const confirmed = window.confirm('⚠️ 警告：此操作将清空所有本地数据并恢复出厂设置！\n\n确认重置？');
     if (confirmed) {
       db.clearAllData();
-      sound.playTap();
-      onRefreshAllData();
-      alert('所有本地数据已重置清空');
+      sound.playSuccess();
+      window.location.reload();
     }
   };
 
+  const handlePetCat = () => {
+    sound.playCelebration();
+    setCatMoodIndex(prev => (prev + 1) % catMoods.length);
+  };
+
+  const copyVersion = () => {
+    navigator.clipboard.writeText('v1.0.0 Release (AES-256 / React 19)');
+    setCopiedVersion(true);
+    sound.playTap();
+    setTimeout(() => setCopiedVersion(false), 2000);
+  };
+
+  const accentColors: { id: AccentColor; label: string; bg: string }[] = [
+    { id: 'wechat', label: '微信绿', bg: 'bg-[#07C160]' },
+    { id: 'catpaw', label: '猫爪粉', bg: 'bg-pink-500' },
+    { id: 'apple', label: '苹果蓝', bg: 'bg-blue-500' },
+    { id: 'orange', label: '暖阳橙', bg: 'bg-amber-500' },
+    { id: 'purple', label: '梦幻紫', bg: 'bg-purple-500' },
+  ];
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
-        {/* Profile Card (WeChat / iOS Settings Hero) */}
-        <div className="glass-card p-4 rounded-3xl shadow-ios border border-white/80 dark:border-zinc-800/80 flex items-center space-x-3.5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#FF6B8B] via-pink-300 to-amber-200 flex items-center justify-center text-2xl shadow-sm ring-2 ring-white dark:ring-zinc-700">
-            🐱
+      <div
+        id="settings-scroll-container"
+        className="flex-1 overflow-y-auto px-2.5 sm:px-3 py-2 space-y-2 pb-24"
+      >
+        {/* 1. Ultra-Compact Micro-Hero Bar (44px) */}
+        <div className="glass-card px-2.5 py-1.5 rounded-xl flex items-center justify-between border border-white/80 dark:border-zinc-800/80 shadow-xs">
+          <div className="flex items-center space-x-2 min-w-0">
+            <button
+              onClick={handlePetCat}
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-200 via-rose-200 to-pink-300 flex items-center justify-center text-base shadow-xs hover:scale-105 active:scale-95 transition shrink-0"
+              title="轻触摸摸猫猫 🐾"
+            >
+              🐱
+            </button>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">猫步可爱</span>
+                <span className="text-[9px] px-1 py-0.2 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded font-semibold">
+                  PRO
+                </span>
+              </div>
+              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                {catMoods[catMoodIndex].text} · {catMoods[catMoodIndex].quote}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center space-x-1.5">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                猫步可爱 (Maobu Cute)
-              </h3>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-400 font-bold">
-                PRO MAX
-              </span>
-            </div>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              微信极简苹果质感 · 本地优先离线加密
-            </p>
-            <div className="flex items-center space-x-2 mt-1 text-[10px] text-zinc-400">
-              <span className="flex items-center space-x-0.5 text-[#07C160]">
-                <Shield className="w-3 h-3 mr-0.5" />
-                本地加密防护
-              </span>
-              <span>·</span>
-              <span>100% 隐私无泄露</span>
-            </div>
+
+          <div className="flex items-center space-x-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-md">
+            <ShieldCheck className="w-3 h-3" />
+            <span>本地沙箱</span>
           </div>
         </div>
 
-        {/* Group 1: 外观与交互 (Appearance & Audio) */}
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 px-2 uppercase tracking-wider">
-            外观风格与触觉
-          </h4>
-          <div className="glass-card rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
-            {/* Theme mode */}
-            <div className="p-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <Sun className="w-4 h-4 text-amber-500" />
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">深浅色主题</span>
-              </div>
-              <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-xl">
-                {[
-                  { id: 'light', label: '浅色', icon: Sun },
-                  { id: 'dark', label: '深色', icon: Moon },
-                  { id: 'system', label: '跟随', icon: Laptop },
-                ].map(item => {
-                  const isCur = settings.themeMode === item.id;
+        {/* 2. Micro Segmented Filter (精凑快速定位标签) */}
+        <div className="flex items-center justify-between bg-zinc-200/70 dark:bg-zinc-800/60 p-0.5 rounded-xl text-[11px]">
+          {[
+            { id: 'all', label: '全部' },
+            { id: 'appearance', label: '🎨 外观' },
+            { id: 'sync', label: '☁️ 同步' },
+            { id: 'data', label: '💾 数据' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                sound.playTap();
+                setActiveSection(tab.id as SettingsSection);
+              }}
+              className={`flex-1 py-1 text-center font-medium rounded-lg transition-all ${
+                activeSection === tab.id
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs font-bold'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 3. Section: Appearance & Audio (紧凑外观与音效) */}
+        {(activeSection === 'all' || activeSection === 'appearance') && (
+          <div className="glass-card p-2.5 rounded-2xl border border-white/80 dark:border-zinc-800/80 shadow-ios space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-xs flex items-center space-x-1">
+                <Palette className="w-3.5 h-3.5 text-pink-500" />
+                <span>外观风格与触觉</span>
+              </span>
+              <button
+                onClick={handleToggleDeviceFrame}
+                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-0.5"
+              >
+                <Smartphone className="w-3 h-3" />
+                <span>{settings.deviceFrame === 'mobile' ? '手机机身' : '宽屏模式'}</span>
+              </button>
+            </div>
+
+            {/* Theme 3-Way Segmented Row */}
+            <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-xl text-[11px]">
+              <button
+                onClick={() => handleThemeChange('light')}
+                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
+                  settings.themeMode === 'light'
+                    ? 'bg-white text-zinc-900 shadow-xs font-bold'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                <Sun className="w-3 h-3 text-amber-500" />
+                <span>浅色</span>
+              </button>
+              <button
+                onClick={() => handleThemeChange('dark')}
+                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
+                  settings.themeMode === 'dark'
+                    ? 'bg-zinc-700 text-white shadow-xs font-bold'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                <Moon className="w-3 h-3 text-blue-400" />
+                <span>深色</span>
+              </button>
+              <button
+                onClick={() => handleThemeChange('system')}
+                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
+                  settings.themeMode === 'system'
+                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-bold'
+                    : 'text-zinc-500 hover:text-zinc-800'
+                }`}
+              >
+                <Laptop className="w-3 h-3 text-zinc-500" />
+                <span>跟随</span>
+              </button>
+            </div>
+
+            {/* Accent Color Dot Row + Sound Toggle Row (Integrated) */}
+            <div className="flex items-center justify-between pt-1 border-t border-zinc-100 dark:border-zinc-800/60">
+              {/* 5 Dots */}
+              <div className="flex items-center space-x-1.5">
+                {accentColors.map(color => {
+                  const isSelected = (settings.accentColor || 'wechat') === color.id;
                   return (
                     <button
-                      key={item.id}
-                      onClick={() => handleSelectTheme(item.id as ThemeMode)}
-                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1 ${
-                        isCur
-                          ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white font-bold shadow-xs'
-                          : 'text-zinc-500 hover:text-zinc-800'
+                      key={color.id}
+                      onClick={() => handleAccentChange(color.id)}
+                      title={color.label}
+                      className={`w-6 h-6 rounded-full ${color.bg} flex items-center justify-center transition transform active:scale-90 ${
+                        isSelected ? 'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-600 scale-110' : 'opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <item.icon className="w-3 h-3" />
-                      <span>{item.label}</span>
+                      {isSelected && <Check className="w-3 h-3 text-white stroke-[3]" />}
                     </button>
                   );
                 })}
               </div>
-            </div>
 
-            {/* Accent color */}
-            <div className="p-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <Palette className="w-4 h-4 text-[#FF6B8B]" />
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">系统主色调</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                {[
-                  { id: 'wechat', color: '#07C160', name: '微信绿' },
-                  { id: 'catpaw', color: '#FF6B8B', name: '猫爪粉' },
-                  { id: 'apple', color: '#007AFF', name: '苹果蓝' },
-                  { id: 'orange', color: '#FF9500', name: '暖阳橙' },
-                  { id: 'purple', color: '#AF52DE', name: '梦幻紫' },
-                ].map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => handleSelectAccent(c.id as AccentColor)}
-                    style={{ backgroundColor: c.color }}
-                    className={`w-6 h-6 rounded-full shadow-xs transition-transform flex items-center justify-center text-white ${
-                      settings.accentColor === c.id ? 'scale-115 ring-2 ring-offset-2 ring-zinc-400' : 'hover:scale-105'
-                    }`}
-                    title={c.name}
-                  >
-                    {settings.accentColor === c.id && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Sound toggle */}
-            <div className="p-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                {settings.soundEnabled ? (
-                  <Volume2 className="w-4 h-4 text-[#07C160]" />
-                ) : (
-                  <VolumeX className="w-4 h-4 text-zinc-400" />
-                )}
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                  按键与庆祝微音效 (Web Audio)
-                </span>
-              </div>
-              <button
-                onClick={handleToggleSound}
-                className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
-                  settings.soundEnabled ? 'bg-[#07C160]' : 'bg-zinc-300 dark:bg-zinc-700'
-                }`}
-              >
-                <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${
-                    settings.soundEnabled ? 'translate-x-5' : 'translate-x-0'
+              {/* Sound switch & Preview */}
+              <div className="flex items-center space-x-1 text-[10px]">
+                <button
+                  onClick={handleTestSound}
+                  className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200"
+                >
+                  ▷ 试听
+                </button>
+                <button
+                  onClick={handleToggleSound}
+                  className={`px-2 py-0.5 rounded-full font-medium flex items-center space-x-0.5 transition ${
+                    settings.soundEnabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                      : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
                   }`}
-                ></div>
-              </button>
+                >
+                  {settings.soundEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+                  <span>{settings.soundEnabled ? '音效开' : '静音'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 4. Section: WebDAV Cloud Sync (高密度紧凑 WebDAV) */}
+        {(activeSection === 'all' || activeSection === 'sync') && (
+          <WebDAVSyncCard onDataRestored={onRefreshAllData} accentColor={settings.accentColor} />
+        )}
+
+        {/* 5. Section: Data Management (紧凑数据指标与管理) */}
+        {(activeSection === 'all' || activeSection === 'data') && (
+          <div className="glass-card p-2.5 rounded-2xl border border-white/80 dark:border-zinc-800/80 shadow-ios space-y-2 text-xs">
+            {/* Header & Single-line Stats Bar */}
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-xs flex items-center space-x-1">
+                <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
+                <span>本地数据资产</span>
+              </span>
+              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                占用约 <strong className="text-zinc-800 dark:text-zinc-200">{storageMetrics.estimatedKB} KB</strong>
+              </span>
             </div>
 
-            {/* Frame mode switch */}
-            <div className="p-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                {settings.deviceFrame === 'mobile' ? (
-                  <Smartphone className="w-4 h-4 text-blue-500" />
-                ) : (
-                  <Monitor className="w-4 h-4 text-purple-500" />
-                )}
-                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                  机身仿真模式
-                </span>
+            {/* Ultra-Compact 4-Pill Stats Strip */}
+            <div className="grid grid-cols-4 gap-1 text-center bg-zinc-100/90 dark:bg-zinc-800/80 p-1.5 rounded-xl">
+              <div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.plansTotal}</div>
+                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">计划({storageMetrics.pendingPlans})</div>
               </div>
+              <div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.notesCount}</div>
+                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">灵感笔记</div>
+              </div>
+              <div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.credentialsCount}</div>
+                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">密码/2FA</div>
+              </div>
+              <div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.cloudAccountsCount}</div>
+                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">微软/谷歌</div>
+              </div>
+            </div>
+
+            {/* Quick Action Buttons (Export & Import in 1 Row) */}
+            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
               <button
-                onClick={handleToggleDeviceFrame}
-                className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-800 dark:text-zinc-200 rounded-xl font-semibold transition"
+                onClick={handleExportData}
+                className="h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95"
               >
-                {settings.deviceFrame === 'mobile' ? '切换为宽屏桌面' : '切换为手机机身'}
+                <Download className="w-3 h-3 text-blue-500" />
+                <span>全量导出 (JSON)</span>
+              </button>
+
+              <label className="h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-[11px] flex items-center justify-center space-x-1 cursor-pointer transition active:scale-95">
+                <Upload className="w-3 h-3 text-emerald-500" />
+                <span>导入备份恢复</span>
+                <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
+              </label>
+            </div>
+
+            {/* Compact Danger Reset Row */}
+            <div className="pt-1 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between text-[10px]">
+              <span className="text-zinc-400">恢复出厂或清空缓存</span>
+              <button
+                onClick={handleResetData}
+                className="text-rose-500 hover:text-rose-600 font-semibold flex items-center space-x-0.5 transition"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>清空数据重置</span>
               </button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* WebDAV Cloud Sync Card (Matches user reference exactly) */}
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 px-2 uppercase tracking-wider">
-            云端备份与跨设备同步
-          </h4>
-          <WebDAVSyncCard onDataRestored={onRefreshAllData} />
-        </div>
-
-        {/* Group 2: 本地数据与离线备份 (Data & Backup) */}
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 px-2 uppercase tracking-wider">
-            本地数据与离线导出
-          </h4>
-          <div className="glass-card rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
-            {/* Export */}
-            <button
-              onClick={handleExportBackup}
-              className="w-full p-3 flex items-center justify-between text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition"
-            >
-              <div className="flex items-center space-x-2.5">
-                <Download className="w-4 h-4 text-blue-500" />
-                <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">
-                    一键导出全量数据 (JSON)
-                  </div>
-                  <p className="text-[10px] text-zinc-400">
-                    备份所有计划、笔记、密码箱、2FA、微软邮箱与 AI 记录
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-zinc-400" />
-            </button>
-
-            {/* Import */}
-            <label className="w-full p-3 flex items-center justify-between text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition cursor-pointer">
-              <div className="flex items-center space-x-2.5">
-                <Upload className="w-4 h-4 text-[#07C160]" />
-                <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
-                    <span>从备份文件恢复数据</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold">
-                      兼容3D平台
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-zinc-400">
-                    支持猫步全量备份或 3D 学习平台导出的谷歌养号与微软邮箱 JSON 文件
-                  </p>
-                </div>
-              </div>
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleImportBackup}
-                className="hidden"
-              />
-              <ChevronRight className="w-4 h-4 text-zinc-400" />
-            </label>
-
-            {/* Clear All */}
-            <button
-              onClick={handleClearAll}
-              className="w-full p-3 flex items-center justify-between text-left hover:bg-red-50 dark:hover:bg-red-950/30 transition text-red-600"
-            >
-              <div className="flex items-center space-x-2.5">
-                <Trash2 className="w-4 h-4" />
-                <div>
-                  <div className="font-semibold">重置清空全部数据</div>
-                  <p className="text-[10px] text-red-400">
-                    清除本地存储并恢复出厂初始状态
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-red-400" />
-            </button>
-          </div>
-        </div>
-
-        {/* Group 3: 关于与技术栈规范 (About & Specs) */}
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 px-2 uppercase tracking-wider">
-            关于与前沿架构
-          </h4>
-          <div className="glass-card p-3.5 rounded-2xl shadow-ios border border-white/80 dark:border-zinc-800/80 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">系统架构</span>
-              <span className="font-mono text-zinc-500">React 19 + TypeScript + Vite 6</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">加密引擎</span>
-              <span className="font-mono text-zinc-500">PBKDF2 + AES-256-GCM + TOTP RFC 6238</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">微软接口转发</span>
-              <span className="font-mono text-zinc-500">Vite Zero-CORS Local Proxy</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">版本号</span>
-              <span className="font-mono text-zinc-500">v1.0.0 (Release)</span>
-            </div>
-            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px] text-zinc-400 leading-relaxed text-center">
-              🐾 【猫步可爱】让每一个重要目标与生活灵感都能轻巧落地。
-            </div>
-          </div>
+        {/* 6. Footer: About Info (单行折叠式) */}
+        <div className="py-1 px-2 text-center text-[10px] text-zinc-400 space-y-0.5">
+          <button
+            onClick={copyVersion}
+            className="hover:text-zinc-600 dark:hover:text-zinc-200 transition inline-flex items-center space-x-1"
+          >
+            <span>猫步可爱 v1.0.0 Release · React 19 + AES-256</span>
+            {copiedVersion ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5 text-zinc-400" />}
+          </button>
+          <div className="text-zinc-400/80">🐾 让每一个重要目标与灵感都能轻巧落地</div>
         </div>
       </div>
     </div>

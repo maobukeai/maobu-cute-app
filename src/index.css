@@ -6,29 +6,46 @@
   :root {
     --theme-accent: #07C160;
     --theme-accent-light: #E8F8F0;
+    --theme-accent-glow: rgba(7, 193, 96, 0.25);
     --theme-bubble: #95EC69;
+    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.05) 0px, transparent 50%),
+                   radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.04) 0px, transparent 50%),
+                   radial-gradient(at 50% 100%, rgba(7, 193, 96, 0.04) 0px, transparent 50%);
+  }
+
+  .dark {
+    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.08) 0px, transparent 60%),
+                   radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.07) 0px, transparent 60%),
+                   radial-gradient(at 50% 100%, rgba(7, 193, 96, 0.05) 0px, transparent 60%);
   }
 
   body {
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     user-select: none;
+    background-color: #F8F9FB;
+    color: #18181B;
+  }
+
+  .dark body {
+    background-color: #0E0E12;
+    color: #F4F4F6;
   }
 
   /* Custom subtle iOS style scrollbars */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.12);
     border-radius: 9999px;
   }
   .dark ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.15);
   }
 }
 
@@ -45,56 +62,177 @@
   scrollbar-width: none !important;
 }
 
+/* App Background Surface with subtle ambient glow */
+.cat-bg-canvas {
+  background-color: #F6F7FA;
+  background-image: var(--app-bg-mesh);
+}
+.dark .cat-bg-canvas {
+  background-color: #0F0F14;
+  background-image: var(--app-bg-mesh);
+}
+
 /* Glassmorphism helpers */
 .glass-nav {
-  background: rgba(247, 247, 247, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 .dark .glass-nav {
-  background: rgba(24, 24, 26, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(18, 18, 24, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 .dark .glass-card {
-  background: rgba(28, 28, 30, 0.95);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(24, 24, 30, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Inset Grouped iOS Card */
+.cat-card {
+  background: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.dark .cat-card {
+  background: #18181E;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* Soft Squishy Press Feedback */
+.tactile-press {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.tactile-press:active {
+  transform: scale(0.965);
 }
 
 /* WeChat Chat Bubble styling */
 .bubble-self {
   background-color: var(--theme-bubble, #95EC69);
   color: #000000;
-  border-radius: 14px 4px 14px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 16px 4px 16px 16px;
+  box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.06);
 }
 .bubble-other {
   background-color: #FFFFFF;
   color: #18181B;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: 4px 16px 16px 16px;
+  box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.04);
 }
 .dark .bubble-other {
-  background-color: #2C2C2E;
-  color: #F4F4F5;
+  background-color: #24242C;
+  color: #F4F4F6;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 /* iOS Grouped Cell separator */
 .ios-separator {
-  border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.08);
 }
 .dark .ios-separator {
-  border-bottom: 0.5px solid rgba(84, 84, 88, 0.35);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Tab indicator */
 .tab-active {
   color: var(--theme-accent, #07C160);
 }
+
+/* 2FA QR Scanner Laser Animation */
+@keyframes qr-scan {
+  0% {
+    top: 6%;
+    opacity: 0.7;
+  }
+  50% {
+    top: 92%;
+    opacity: 1;
+  }
+  100% {
+    top: 6%;
+    opacity: 0.7;
+  }
+}
+
+.animate-qr-scan {
+  animation: qr-scan 2.2s ease-in-out infinite;
+}
+
+/* Gentle Glow / Pulse Animation */
+@keyframes soft-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(0.97);
+  }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 3s ease-in-out infinite;
+}
+
+/* Cat Paws Floating / Breathing */
+@keyframes cat-float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(2deg);
+  }
+}
+
+.animate-cat-float {
+  animation: cat-float 3.5s ease-in-out infinite;
+}
+
+/* iOS Spring Tap Effect */
+.press-spring {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+}
+.press-spring:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* iOS Grouped Item Card */
+.ios-group-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+.dark .ios-group-card {
+  background: rgba(24, 24, 30, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Mobile Safe Area Utilities */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+

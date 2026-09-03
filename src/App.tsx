@@ -75,27 +75,33 @@ export const App: React.FC = () => {
     let hex = '#07C160';
     let light = '#E8F8F0';
     let bubble = '#95EC69';
+    let glow = 'rgba(7, 193, 96, 0.25)';
 
     if (currentSettings.accentColor === 'catpaw') {
       hex = '#FF6B8B';
       light = '#FFF0F3';
       bubble = '#FF8DA6';
+      glow = 'rgba(255, 107, 139, 0.3)';
     } else if (currentSettings.accentColor === 'apple') {
-      hex = '#007AFF';
-      light = '#EBF4FF';
+      hex = '#0A84FF';
+      light = '#EFF6FF';
       bubble = '#5AC8FA';
+      glow = 'rgba(10, 132, 255, 0.28)';
     } else if (currentSettings.accentColor === 'orange') {
       hex = '#FF9500';
-      light = '#FFF6EB';
+      light = '#FFF7ED';
       bubble = '#FFB340';
+      glow = 'rgba(255, 149, 0, 0.28)';
     } else if (currentSettings.accentColor === 'purple') {
       hex = '#AF52DE';
-      light = '#F8EDFF';
+      light = '#FAF5FF';
       bubble = '#DA8FFF';
+      glow = 'rgba(175, 82, 222, 0.28)';
     }
 
     document.documentElement.style.setProperty('--theme-accent', hex);
     document.documentElement.style.setProperty('--theme-accent-light', light);
+    document.documentElement.style.setProperty('--theme-accent-glow', glow);
     document.documentElement.style.setProperty('--theme-bubble', bubble);
   };
 
@@ -104,21 +110,30 @@ export const App: React.FC = () => {
   }, []);
 
   const handleSelectTab = (tab: AppTab) => {
-    const updated: AppSettings = { ...settings, activeTab: tab };
-    setSettings(updated);
-    db.saveSettings(updated);
+    setSettings(prev => {
+      const updated: AppSettings = { ...prev, activeTab: tab };
+      db.saveSettings(updated);
+      return updated;
+    });
   };
 
   const handleToggleFrame = () => {
     sound.playToggle();
-    const nextFrame: DeviceFrame = settings.deviceFrame === 'mobile' ? 'desktop' : 'mobile';
-    const updated: AppSettings = { ...settings, deviceFrame: nextFrame };
-    setSettings(updated);
-    db.saveSettings(updated);
+    setSettings(prev => {
+      const nextFrame: DeviceFrame = prev.deviceFrame === 'mobile' ? 'desktop' : 'mobile';
+      const updated: AppSettings = { ...prev, deviceFrame: nextFrame };
+      db.saveSettings(updated);
+      return updated;
+    });
   };
 
   // Pending plans badge count
   const pendingPlansCount = plans.filter(p => !p.isCompleted).length;
+
+  const handleUpdateGoogleAccounts = (updated: GoogleWarmingAccount[]) => {
+    setGoogleAccounts(updated);
+    db.saveGoogleAccounts(updated);
+  };
 
   return (
     <MobileFrame deviceFrame={settings.deviceFrame} onToggleFrame={handleToggleFrame}>
@@ -157,7 +172,7 @@ export const App: React.FC = () => {
             hotmailAccounts={hotmailAccounts}
             onUpdateHotmailAccounts={setHotmailAccounts}
             googleAccounts={googleAccounts}
-            onUpdateGoogleAccounts={setGoogleAccounts}
+            onUpdateGoogleAccounts={handleUpdateGoogleAccounts}
             providers={providers}
             accentColor={settings.accentColor}
           />

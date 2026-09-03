@@ -470,6 +470,7 @@ export function importGoogleAccountsFromJSON(
       country: translateCountryName(item.country),
       backupCodes: item.backupCodes || '',
       category: item.category || '未分类',
+      note: item.note || '',
       status: item.status && ['warming', 'completed', 'paused'].includes(item.status) ? item.status : 'warming',
       currentDay: typeof item.currentDay === 'number' && item.currentDay >= 1 && item.currentDay <= 14 ? item.currentDay : 1,
       lastWarmedAt: item.lastWarmedAt || undefined,
