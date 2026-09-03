@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -30,3 +30,12 @@ release
 .env
 .env.local
 .env.*.local
+
+# Android
+.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.gradle/
+android/captures/
+android/.externalNativeBuild/

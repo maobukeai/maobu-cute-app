@@ -1,4 +1,4 @@
-﻿# 🐱 猫步可爱 (Maobu Cute) - 极简高能个人全能助理
+# 🐱 猫步可爱 (Maobu Cute) - 极简高能个人全能助理
 
 [![Version](https://img.shields.io/badge/version-v0.10.0-emerald.svg)](https://github.com/maobukeai/maobu-cute-app/releases)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
@@ -91,6 +91,23 @@ npm run electron:build
 ```
 打包产物将输出至 `release/` 目录下。
 
+### 编译打包 Android 原生移动端 APK
+```bash
+# 1. 编译前端产物并同步到 Android 原生工程
+npx cap sync android
+
+# 2. 编译打包 Debug APK
+cd android && ./gradlew assembleDebug
+# 生成产物：android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+---
+
+## 📥 软件下载 (Releases)
+
+- 📱 **安卓移动端 (Android APK)**：[下载 maobu-cute-app-v0.10.0.apk](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.10.0/maobu-cute-app-v0.10.0.apk)（4.3 MB，安卓手机/模拟器直接安装畅享原生质感）
+- 💻 **Windows 桌面绿色版**：[下载 maobu-cute-app-v0.10.0-win-x64.zip](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.10.0/maobu-cute-app-v0.10.0-win-x64.zip)（158 MB，解压即用运行 `猫步可爱.exe`，无需配置 Node 环境）
+
 ---
 
 ## 📦 版本记录
@@ -101,7 +118,7 @@ npm run electron:build
   - 引入 Markdown 编辑器 AI 实时干活动态看板；
   - 引入 3D 平台数据互通与谷歌 14 天科学养号系统；
   - 引入真实 GitHub 开源高星技能市场；
-  - 完成 Android 虚拟设备与 Windows 原生桌面端全流程实测验证。
+  - 完成 Android 虚拟设备与 Windows 原生桌面端双端编译与实测验证，正式挂载 APK 与 Windows 绿色软件包。
 
 ---
 

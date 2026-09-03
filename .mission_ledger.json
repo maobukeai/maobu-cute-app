@@ -101,7 +101,9 @@
       "screenshot_android_vm_google_warming.png",
       "screenshot_android_vm_ai_companion.png",
       "screenshot_android_vm_skills.png",
-      "screenshot_android_vm_settings.png"
+      "screenshot_android_vm_settings.png",
+      "screenshot_android_apk_installed_launched.png",
+      "screenshot_android_apk_ai_companion.png"
     ]
   },
   "quality_gate": {
