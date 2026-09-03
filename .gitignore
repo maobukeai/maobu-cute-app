@@ -14,6 +14,10 @@ dist-ssr
 dist-electron
 release
 *.local
+src/local/
+*.local.ts
+*.local.json
+local_test_*.json
 
 # Editors
 .vscode/*

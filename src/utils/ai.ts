@@ -262,34 +262,30 @@ export function buildAuthHeaders(apiKey: string): Record<string, string> {
 }
 
 export const DEFAULT_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_custom_sensenova',
+  id: 'provider_custom_openai',
   name: '自定义兼容接口 (Custom Endpoint)',
-  baseUrl: 'https://token.sensenova.cn/v1',
-  apiKey: 'sk-DglCNvUub4sIBBNubGxDbLpTUor3IEZe',
-  defaultModel: 'deepseek-v4-flash',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: '',
+  defaultModel: 'deepseek-chat',
   availableModels: [
-    'deepseek-v4-flash',
-    'sensenova-6.7-flash-lite',
-    'glm-5.2',
-    'sensenova-u1-fast',
-    'sensenova-6.8-flash-lite',
-    'sensenova-u1.5-lite',
-    'deepseek-v4-pro',
-    'kimi-k3',
+    'deepseek-chat',
+    'deepseek-reasoner',
+    'gpt-4o',
+    'gpt-4o-mini',
+    'claude-3-5-sonnet',
   ],
   isActive: true,
 };
 
 export const SECOND_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_custom_cloudflare_gemini',
-  name: 'Cloudflare Gemini 代理端点',
-  baseUrl: 'https://gateway.ai.cloudflare.com/v1/15f8013c69ef90d952d7a2945a949e52/gemini-proxy/google-ai-studio/v1beta/openai',
-  apiKey: 'AIzaSyCuqKhSuDEXxhz-P_6ggwkVfgfo01_86Qk',
-  defaultModel: 'gemini-3.5-flash-lite',
+  id: 'provider_custom_deepseek',
+  name: 'DeepSeek 官方开放平台',
+  baseUrl: 'https://api.deepseek.com/v1',
+  apiKey: '',
+  defaultModel: 'deepseek-chat',
   availableModels: [
-    'gemini-3.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
+    'deepseek-chat',
+    'deepseek-reasoner',
   ],
   isActive: false,
 };

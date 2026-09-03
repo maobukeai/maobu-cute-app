@@ -1541,10 +1541,10 @@ export const AITab: React.FC<AITabProps> = ({
                   }`}
                 >
                   <div className="min-w-0 pr-1">
-                    <div className="font-bold truncate text-[11px]">商汤日日新 (SenseNova)</div>
-                    <div className="text-[10px] text-zinc-400 font-mono truncate">deepseek-v4-flash</div>
+                    <div className="font-bold truncate text-[11px]">OpenAI 兼容接口</div>
+                    <div className="text-[10px] text-zinc-400 font-mono truncate">api.openai.com/v1</div>
                   </div>
-                  {currentCustomProvider.baseUrl.includes('sensenova.cn') && (
+                  {currentCustomProvider.baseUrl.includes('openai.com') && (
                     <Check className="w-4 h-4 text-[#07C160] shrink-0" />
                   )}
                 </button>
@@ -1553,16 +1553,16 @@ export const AITab: React.FC<AITabProps> = ({
                   type="button"
                   onClick={() => handleQuickLoadPreset(SECOND_CUSTOM_PROVIDER)}
                   className={`p-2.5 rounded-2xl border text-xs font-medium text-left transition flex items-center justify-between ${
-                    currentCustomProvider.baseUrl.includes('cloudflare.com')
+                    currentCustomProvider.baseUrl.includes('deepseek.com')
                       ? 'border-[#07C160] bg-green-50/80 dark:bg-green-950/30 text-green-800 dark:text-green-300 shadow-sm'
                       : 'border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-800/60 hover:border-zinc-300'
                   }`}
                 >
                   <div className="min-w-0 pr-1">
-                    <div className="font-bold truncate text-[11px]">Cloudflare Gemini 代理</div>
-                    <div className="text-[10px] text-zinc-400 font-mono truncate">gemini-3.5-flash-lite</div>
+                    <div className="font-bold truncate text-[11px]">DeepSeek 开放平台</div>
+                    <div className="text-[10px] text-zinc-400 font-mono truncate">api.deepseek.com/v1</div>
                   </div>
-                  {currentCustomProvider.baseUrl.includes('cloudflare.com') && (
+                  {currentCustomProvider.baseUrl.includes('deepseek.com') && (
                     <Check className="w-4 h-4 text-[#07C160] shrink-0" />
                   )}
                 </button>

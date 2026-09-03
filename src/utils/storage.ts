@@ -78,77 +78,11 @@ const DEFAULT_NOTES: NoteItem[] = [
   },
 ];
 
-const DEFAULT_TWO_FACTOR: TwoFactorToken[] = [
-  {
-    id: '2fa_1',
-    issuer: 'GitHub',
-    account: 'developer@maobu.dev',
-    secret: 'JBSWY3DPEHPK3PXP', // Sample standard Base32 key
-    digits: 6,
-    period: 30,
-    algorithm: 'SHA1',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2fa_2',
-    issuer: 'Microsoft',
-    account: 'gkyhnzrzwmw@hotmail.com',
-    secret: 'MZXW6YTBOI======',
-    digits: 6,
-    period: 30,
-    algorithm: 'SHA1',
-    createdAt: new Date().toISOString(),
-  },
-];
+const DEFAULT_TWO_FACTOR: TwoFactorToken[] = [];
 
 const DEFAULT_HOTMAIL: HotmailAccount[] = [];
 
-const DEFAULT_GOOGLE_ACCOUNTS: GoogleWarmingAccount[] = [
-  {
-    id: 'gw_demo_1',
-    email: 'alex.developer.2026@gmail.com',
-    password: 'P@ssw0rd2026!Cute',
-    recoveryEmail: 'backup_alex@hotmail.com',
-    twoFASecret: 'JBSWY3DPEHPK3PXP',
-    country: '美国',
-    note: 'GCP 主开发环境 / Gemini API 调用号',
-    backupCodes: '3191 6344 6829 7625 9012 4321',
-    category: 'GCP',
-    status: 'warming',
-    currentDay: 3,
-    lastWarmedAt: new Date(Date.now() - 3600000).toISOString(),
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'gw_demo_2',
-    email: 'sarah.creator.hk@gmail.com',
-    password: 'M@obuCute2026#Safe',
-    recoveryEmail: 'gkyhnzrzwmw@hotmail.com',
-    twoFASecret: 'MZXW6YTBOI======',
-    country: '中国香港',
-    note: 'YouTube 与 AdSense 创作者高权重老号',
-    backupCodes: '5521 8892 1092 3341',
-    category: 'AdSense',
-    status: 'completed',
-    currentDay: 14,
-    lastWarmedAt: new Date().toISOString(),
-    createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-  },
-  {
-    id: 'gw_demo_3',
-    email: 'kenji.tokyo.test@gmail.com',
-    password: 'TokyoCat2026$Fast',
-    recoveryEmail: '',
-    twoFASecret: '',
-    country: '日本',
-    note: '备用账号（待配置辅助邮箱）',
-    backupCodes: '',
-    category: '未分类',
-    status: 'paused',
-    currentDay: 1,
-    createdAt: new Date().toISOString(),
-  }
-];
+const DEFAULT_GOOGLE_ACCOUNTS: GoogleWarmingAccount[] = [];
 
 const DEFAULT_SETTINGS: AppSettings = {
   themeMode: 'light',

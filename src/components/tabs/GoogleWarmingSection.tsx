@@ -1343,8 +1343,8 @@ sample2@gmail.com----pwd456----rec2@mail.com----MZXW6YTBOI======----日本`
                 <div className="flex items-center justify-end space-x-2 pt-1">
                   <button
                     onClick={() => {
-                      const sample = `alex.developer.2026@gmail.com----P@ssw0rd2026!Cute----backup_alex@hotmail.com----JBSWY3DPEHPK3PXP----美国----3191 6344----GCP----开发主力
-sarah.creator.hk@gmail.com----M@obuCute2026#Safe----gkyhnzrzwmw@hotmail.com----MZXW6YTBOI======----中国香港----5521 8892----AdSense----YouTube创作者`;
+                      const sample = `example1@gmail.com----Password123----recovery1@example.com----JBSWY3DPEHPK3PXP----美国----3191 6344----GCP----主力开发号
+example2@gmail.com----Password456----recovery2@example.com----MZXW6YTBOI======----中国香港----5521 8892----AdSense----创作者频道`;
                       setImportText(sample);
                     }}
                     className="px-3 py-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 text-xs"

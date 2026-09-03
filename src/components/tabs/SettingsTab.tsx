@@ -167,7 +167,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const copyVersion = () => {
-    navigator.clipboard.writeText('v1.0.0 Release (AES-256 / React 19)');
+    navigator.clipboard.writeText('v0.1.1 Release (AES-256 / React 19)');
     setCopiedVersion(true);
     sound.playTap();
     setTimeout(() => setCopiedVersion(false), 2000);
@@ -416,7 +416,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             onClick={copyVersion}
             className="hover:text-zinc-600 dark:hover:text-zinc-200 transition inline-flex items-center space-x-1"
           >
-            <span>猫步可爱 v1.0.0 Release · React 19 + AES-256</span>
+            <span>猫步可爱 v0.1.1 Release · React 19 + AES-256</span>
             {copiedVersion ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5 text-zinc-400" />}
           </button>
           <div className="text-zinc-400/80">🐾 让每一个重要目标与灵感都能轻巧落地</div>

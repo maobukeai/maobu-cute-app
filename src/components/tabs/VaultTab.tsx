@@ -509,7 +509,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
   // Pre-fill user sample format in import modal
   const handleFillSample = () => {
-    const sample = `gkyhnzrzwmw@hotmail.com----zzbaftapfhdm53----9e5f94bc-e8a4-4e73-b8be-63364c29d753----M.C514_BL2.0.U.MsaArtifacts.-Cjmy*zba8h9bSZ9gmInf!apAEU0mODjiG5OGR5AeiPmzKVGnCGUgNPg1Nbx!q2O4qwJGI6Ip5HQe6y3kzw1B6hNEMcEn9*ttWvEv2Ykw2p9OizxlOA5Uv1TjzvUBWsAqwXyMz5ZDWnHjiIC07XTn!QwOtTNImxIe7bUdUgszWNQRjP*RmACm4jL2jgkESPdRl4kSHjqYfRYFTo1AwoYls2vymWFJ7rLVOU*lwJ!0ERLFEuAZKw89tPFzfOEzfxMh*3H2UskQlRZ1!5eRsbdnTIxAol9Yw*X1!NlzaWaMoaesCRjwSHhYC9jN1z6GdtEuyn!VU*dwr8yXNPQQhfASsKkoYchfsdVEnkFLqPEwaVSVBlPZq1BhDAkAssks*RSc1mbetXKg6egXmKEVR8H5WaRVtOIopAcX3WntB7HZNWmOvBdRG7sEDupe0FH65LLE0w$$`;
+    const sample = `sample@hotmail.com----your_password----9e5f94bc-e8a4-4e73-b8be-63364c29d753----M.C514_BL2.0.U.SAMPLE_REFRESH_TOKEN`;
     setHotmailImportText(sample);
   };
 
