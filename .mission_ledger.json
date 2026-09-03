@@ -111,7 +111,10 @@
       "screenshot_plans_ui_overhauled.png",
       "screenshot_notes_ai_generated.png",
       "screenshot_notes_ai_editor_dock.png",
-      "screenshot_notes_ui_overhauled.png"
+      "screenshot_notes_ui_overhauled.png",
+      "screenshot_hotmail_token_valid.png",
+      "screenshot_real_emails_list_modal.png",
+      "screenshot_real_email_detail_modal.png"
     ]
   },
   "quality_gate": {
