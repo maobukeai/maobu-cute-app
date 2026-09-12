@@ -1,4 +1,5 @@
 // AI Engine and Streaming Client for 【猫步可爱】
+import { Capacitor } from '@capacitor/core';
 import { AIProvider, AISkill, AIImageGeneration } from '../types';
 
 export const BUILTIN_SKILLS: AISkill[] = [
@@ -180,45 +181,83 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
 export async function fetchSkillFromGitHubUrl(rawUrl: string): Promise<Partial<AISkill>> {
   let fetchUrl = rawUrl.trim();
 
-  // Convert standard github.com blob/tree url to raw.githubusercontent.com
+  // Convert standard github.com blob/tree/raw url to raw.githubusercontent.com
   if (fetchUrl.includes('github.com') && !fetchUrl.includes('raw.githubusercontent.com')) {
     if (fetchUrl.includes('/blob/')) {
       fetchUrl = fetchUrl.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+    } else if (fetchUrl.includes('/raw/')) {
+      fetchUrl = fetchUrl.replace('github.com', 'raw.githubusercontent.com').replace('/raw/', '/');
     } else {
-      // If repo root, try README.md
+      // If repo root, default to main branch README.md
       fetchUrl = fetchUrl.replace(/\/$/, '') + '/main/README.md';
       fetchUrl = fetchUrl.replace('github.com', 'raw.githubusercontent.com');
     }
   }
 
-  let text = '';
-  try {
-    const res = await fetch(fetchUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    text = await res.text();
-  } catch {
-    // Try via Vite proxy
+  async function fetchText(target: string): Promise<string> {
+    try {
+      const res = await fetch(target);
+      if (res.ok) return await res.text();
+    } catch {}
+
+    // Fallback to Vite dev proxy if running on localhost web
     const proxyRes = await fetch('/api/ai-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: fetchUrl, method: 'GET' }),
+      body: JSON.stringify({ url: target, method: 'GET' }),
     });
-    if (!proxyRes.ok) throw new Error('从 GitHub 获取内容失败，请检查 URL 是否公开有效');
-    const proxyJson = await proxyRes.json();
-    text = proxyJson.data || proxyJson.content || JSON.stringify(proxyJson);
+    if (proxyRes.ok) return await proxyRes.text();
+    throw new Error(`无法获取技能内容 (${proxyRes.status})`);
+  }
+
+  let text = '';
+  try {
+    text = await fetchText(fetchUrl);
+  } catch (err) {
+    // If fetching main branch failed and URL ended with /main/README.md, fallback to /master/README.md
+    if (fetchUrl.endsWith('/main/README.md')) {
+      const masterUrl = fetchUrl.replace('/main/README.md', '/master/README.md');
+      try {
+        text = await fetchText(masterUrl);
+        fetchUrl = masterUrl;
+      } catch {
+        throw new Error('从 GitHub 获取内容失败，请检查 URL 是否公开且存在 README.md 文件');
+      }
+    } else {
+      throw new Error('从 GitHub 获取内容失败，请检查 URL 是否公开有效');
+    }
   }
 
   // Parse markdown
   const lines = text.split('\n');
   let title = 'GitHub 开源技能';
-  let description = '从 GitHub 导入的开源技能';
+  let description = '';
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('# ')) {
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith('# ') && title === 'GitHub 开源技能') {
       title = trimmed.replace('# ', '').trim();
+      // Look for the first informative non-heading line as description
+      for (let j = i + 1; j < lines.length; j++) {
+        const nextTrimmed = lines[j].trim();
+        if (
+          nextTrimmed &&
+          !nextTrimmed.startsWith('#') &&
+          !nextTrimmed.startsWith('```') &&
+          !nextTrimmed.startsWith('!') &&
+          !nextTrimmed.startsWith('[') &&
+          !nextTrimmed.startsWith('>')
+        ) {
+          description = nextTrimmed;
+          break;
+        }
+      }
       break;
     }
+  }
+
+  if (!description) {
+    description = '从 GitHub 导入的开源技能';
   }
 
   // Look for prompt or instructions
@@ -302,8 +341,10 @@ async function safeAiFetch(
   body?: any,
   signal?: AbortSignal
 ): Promise<Response> {
-  // If in browser web environment (localhost/vite), use /api/ai-proxy to eliminate CORS
-  if (typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) {
+  const isNative = Capacitor.isNativePlatform();
+
+  // If in browser web dev environment (localhost/vite) and NOT on native Capacitor, use /api/ai-proxy to eliminate CORS
+  if (!isNative && typeof window !== 'undefined' && window.location && window.location.origin.includes('localhost')) {
     try {
       const proxyRes = await fetch('/api/ai-proxy', {
         method: 'POST',
@@ -316,17 +357,20 @@ async function safeAiFetch(
         }),
         signal,
       });
-      return proxyRes;
+      // Fallback to direct fetch if proxy endpoint doesn't exist (e.g. 404 in preview/static host)
+      if (proxyRes.status !== 404) {
+        return proxyRes;
+      }
     } catch (proxyErr: any) {
       if (signal?.aborted) throw proxyErr;
     }
   }
 
-  // Direct fetch for Electron or when proxy is bypassed
+  // Direct fetch for native mobile (CapacitorHttp), Electron, or when dev proxy is bypassed/404
   return fetch(url, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
     signal,
   });
 }
@@ -573,33 +617,23 @@ export async function generateAIImage({
     n: 1,
     size,
     style,
+    response_format: 'b64_json',
   };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${provider.apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    // Fallback proxy
-    response = await fetch('/api/ai-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${provider.apiKey}`,
-        },
-        body: payload,
-      }),
-    });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${provider.apiKey}`,
+  };
+
+  let response = await safeAiFetch(url, 'POST', headers, payload);
+
+  // If provider does not accept response_format: 'b64_json' (some third-party gateways), retry without it
+  if (!response.ok && response.status === 400) {
+    const { response_format, ...standardPayload } = payload;
+    const retryRes = await safeAiFetch(url, 'POST', headers, standardPayload);
+    if (retryRes.ok) {
+      response = retryRes;
+    }
   }
 
   if (!response.ok) {
@@ -609,15 +643,44 @@ export async function generateAIImage({
 
   const data = await response.json();
   const item = data.data?.[0];
-  if (!item || !item.url) {
-    throw new Error('未返回有效图片链接');
+  if (!item || (!item.url && !item.b64_json)) {
+    throw new Error('未返回有效图片数据');
+  }
+
+  let finalImageUrl = item.url || '';
+  if (item.b64_json) {
+    finalImageUrl = item.b64_json.startsWith('data:')
+      ? item.b64_json
+      : `data:image/png;base64,${item.b64_json}`;
+  } else if (item.url) {
+    try {
+      // DALL-E 3 image URLs expire in 60 minutes. Convert to local Base64 Data URL for persistent storage
+      let imgRes: Response;
+      try {
+        imgRes = await fetch(item.url);
+      } catch {
+        imgRes = await safeAiFetch(item.url, 'GET', {});
+      }
+      if (imgRes.ok) {
+        const blob = await imgRes.blob();
+        finalImageUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to convert image url to local Base64, falling back to remote URL:', e);
+      finalImageUrl = item.url;
+    }
   }
 
   return {
     id: 'img_' + Math.random().toString(36).substring(2, 9),
     prompt,
     revisedPrompt: item.revised_prompt,
-    imageUrl: item.url,
+    imageUrl: finalImageUrl,
     size,
     style,
     createdAt: new Date().toISOString(),

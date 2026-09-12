@@ -42,6 +42,9 @@ import {
   formatFriendlyAIError,
 } from '../../utils/ai';
 import { MarkdownPreview } from '../MarkdownPreview';
+import { BottomSheet } from '../common/BottomSheet';
+import { SwipeableItem } from '../common/SwipeableItem';
+import { haptics } from '../../utils/haptics';
 
 interface NotesTabProps {
   notes: NoteItem[];
@@ -377,8 +380,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   };
 
   // Toggle Favorite
-  const handleToggleFavorite = (noteId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleToggleFavorite = (noteId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     sound.playTap();
     const updated = notes.map(n =>
       n.id === noteId ? { ...n, isFavorite: !n.isFavorite, updatedAt: new Date().toISOString() } : n
@@ -388,8 +391,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   };
 
   // Toggle Pin
-  const handleTogglePin = (noteId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleTogglePin = (noteId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     sound.playTap();
     const updated = notes.map(n =>
       n.id === noteId ? { ...n, isPinned: !n.isPinned, updatedAt: new Date().toISOString() } : n
@@ -399,8 +402,8 @@ export const NotesTab: React.FC<NotesTabProps> = ({
   };
 
   // Delete note
-  const handleDeleteNote = (noteId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteNote = (noteId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     sound.playTap();
     const updated = notes.filter(n => n.id !== noteId);
     onUpdateNotes(updated);
@@ -573,7 +576,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
       </div>
 
       {/* Notes List */}
-      <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-2.5 pb-20">
+      <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-3 pb-24 max-w-7xl mx-auto w-full">
         {filteredNotes.length === 0 ? (
           <div className="py-14 flex flex-col items-center justify-center text-center space-y-2.5 select-none bg-white/70 dark:bg-[#18181F]/70 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800/80 shadow-ios-sm">
             <div className="w-16 h-16 rounded-full bg-zinc-100/80 dark:bg-zinc-800/80 flex items-center justify-center text-3xl shadow-inner animate-cat-float">
@@ -595,16 +598,40 @@ export const NotesTab: React.FC<NotesTabProps> = ({
             </button>
           </div>
         ) : (
-          filteredNotes.map(note => (
-            <div
-              key={note.id}
-              onClick={() => handleOpenEdit(note)}
-              className={`cat-card p-4 cursor-pointer transition-all duration-200 relative group tactile-press ${
-                note.isPinned
-                  ? 'border-l-4 border-l-amber-400 dark:border-l-amber-400 bg-amber-50/20 dark:bg-amber-950/10'
-                  : ''
-              }`}
-            >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+            {filteredNotes.map(note => (
+              <SwipeableItem
+                key={note.id}
+                leftAction={{
+                  label: note.isPinned ? '取消置顶' : '置顶笔记',
+                  icon: <Pin className="w-4 h-4 text-white" />,
+                  colorClass: 'bg-amber-500 text-white',
+                  onTrigger: () => handleTogglePin(note.id),
+                }}
+                rightActions={[
+                  {
+                    label: note.isFavorite ? '取消收藏' : '收藏',
+                    icon: <Star className="w-3.5 h-3.5 text-white" />,
+                    colorClass: 'bg-amber-400 text-white',
+                    onClick: () => handleToggleFavorite(note.id),
+                  },
+                  {
+                    label: '删除',
+                    icon: <Trash2 className="w-3.5 h-3.5 text-white" />,
+                    colorClass: 'bg-red-500 text-white',
+                    onClick: () => handleDeleteNote(note.id),
+                  },
+                ]}
+                className="rounded-2xl h-full"
+              >
+                <div
+                  onClick={() => handleOpenEdit(note)}
+                  className={`cat-card p-4 cursor-pointer transition-all duration-200 relative group tactile-press h-full flex flex-col justify-between ${
+                    note.isPinned
+                      ? 'border-l-4 border-l-amber-400 dark:border-l-amber-400 bg-amber-50/20 dark:bg-amber-950/10'
+                    : ''
+                }`}
+              >
               {/* Top Row: Title & Badges */}
               <div className="flex items-start justify-between space-x-2">
                 <div className="flex items-center space-x-1.5 min-w-0">
@@ -689,14 +716,16 @@ export const NotesTab: React.FC<NotesTabProps> = ({
                 </div>
               </div>
             </div>
-          ))
+          </SwipeableItem>
+        ))}
+          </div>
         )}
       </div>
 
       {/* Note Editor Modal */}
       {showEditor && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-2xl h-[90vh] bg-white dark:bg-[#15151C] rounded-[32px] flex flex-col shadow-ios-modal border border-zinc-200/80 dark:border-white/10 overflow-hidden animate-scale-in">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4">
+          <div className="w-full sm:max-w-2xl h-[100dvh] sm:h-[90vh] bg-white dark:bg-[#15151C] rounded-none sm:rounded-[32px] flex flex-col shadow-ios-modal sm:border sm:border-zinc-200/80 dark:sm:border-white/10 overflow-hidden animate-slide-up sm:animate-scale-in pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
             {/* Modal Header */}
             <div className="h-12 px-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
@@ -1250,35 +1279,17 @@ export const NotesTab: React.FC<NotesTabProps> = ({
         </div>
       )}
 
-      {/* AI Smart Note Creation Modal */}
-      {showAIModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-lg shadow-2xl border border-white/80 dark:border-zinc-800 space-y-4 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-500 via-pink-500 to-rose-400 text-white flex items-center justify-center shadow-xs">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                    猫步 AI 灵感写笔记
-                  </h3>
-                </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  输入任意构思或主题，AI 将自动为你撰写排版优美、扎实丰富的 Markdown 笔记
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAIModal(false);
-                  setAiNoteResult(null);
-                }}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* AI Smart Note Creation BottomSheet */}
+      <BottomSheet
+        isOpen={showAIModal}
+        onClose={() => {
+          setShowAIModal(false);
+          setAiNoteResult(null);
+        }}
+        title="猫步 AI 灵感写笔记"
+        subtitle="输入构思或主题，AI 自动生成优美的 Markdown 笔记"
+      >
+        <div className="space-y-4 pb-2">
 
             {/* Model Selector & API Status Banner */}
             <div className="flex items-center justify-between p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/60 text-xs">
@@ -1526,8 +1537,7 @@ export const NotesTab: React.FC<NotesTabProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
+      </BottomSheet>
     </div>
   );
 };

@@ -27,6 +27,16 @@ async function getDerivedKey(password: string, mode: 'encrypt' | 'decrypt' = 'en
   );
 }
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  const CHUNK_SIZE = 0x8000; // 32KB chunks prevent call stack limits
+  for (let i = 0; i < len; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK_SIZE, len)));
+  }
+  return btoa(binary);
+}
+
 export async function encryptData(text: string, masterKey: string): Promise<string> {
   try {
     const key = await getDerivedKey(masterKey, 'encrypt');
@@ -43,7 +53,7 @@ export async function encryptData(text: string, masterKey: string): Promise<stri
     combined.set(iv, 0);
     combined.set(new Uint8Array(ciphertext), iv.length);
 
-    return btoa(String.fromCharCode(...combined));
+    return uint8ArrayToBase64(combined);
   } catch (err) {
     console.error('Encryption error:', err);
     throw err;

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AppSettings, ThemeMode, AccentColor, DeviceFrame } from '../../types';
 import { db } from '../../utils/storage';
 import { sound } from '../../utils/sound';
+import { haptics } from '../../utils/haptics';
 import { WebDAVSyncCard } from '../WebDAVSyncCard';
 import {
   Sun,
@@ -84,11 +85,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   // Handlers
   const handleThemeChange = (themeMode: ThemeMode) => {
+    haptics.selection();
     sound.playTap();
     onUpdateSettings({ ...settings, themeMode });
   };
 
   const handleAccentChange = (accentColor: AccentColor) => {
+    haptics.selection();
     sound.playTap();
     onUpdateSettings({ ...settings, accentColor });
   };
@@ -96,15 +99,28 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const handleToggleSound = () => {
     const nextSound = !settings.soundEnabled;
     sound.toggleSound(nextSound);
+    haptics.selection();
     if (nextSound) sound.playTap();
     onUpdateSettings({ ...settings, soundEnabled: nextSound });
   };
 
+  const handleToggleHaptics = () => {
+    const nextHaptics = settings.hapticsEnabled === false ? true : false;
+    haptics.setEnabled(nextHaptics);
+    if (nextHaptics) {
+      haptics.notificationSuccess();
+    }
+    sound.playTap();
+    onUpdateSettings({ ...settings, hapticsEnabled: nextHaptics });
+  };
+
   const handleTestSound = () => {
+    haptics.notificationSuccess();
     sound.playCelebration();
   };
 
   const handleToggleDeviceFrame = () => {
+    haptics.selection();
     sound.playTap();
     const nextFrame: DeviceFrame = settings.deviceFrame === 'mobile' ? 'desktop' : 'mobile';
     onUpdateSettings({ ...settings, deviceFrame: nextFrame });
@@ -182,10 +198,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas">
       <div
         id="settings-scroll-container"
-        className="flex-1 overflow-y-auto px-2.5 sm:px-3 py-2 space-y-2 pb-24"
+        className="flex-1 overflow-y-auto px-2.5 sm:px-3.5 py-3 space-y-2.5 pb-24 max-w-4xl mx-auto w-full"
       >
         {/* 1. Ultra-Compact Micro-Hero Bar (44px) */}
         <div className="glass-card px-2.5 py-1.5 rounded-xl flex items-center justify-between border border-white/80 dark:border-zinc-800/80 shadow-xs">
@@ -316,7 +332,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 })}
               </div>
 
-              {/* Sound switch & Preview */}
+              {/* Sound & Haptics switches */}
               <div className="flex items-center space-x-1 text-[10px]">
                 <button
                   onClick={handleTestSound}
@@ -334,6 +350,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 >
                   {settings.soundEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
                   <span>{settings.soundEnabled ? '音效开' : '静音'}</span>
+                </button>
+                <button
+                  onClick={handleToggleHaptics}
+                  className={`px-2 py-0.5 rounded-full font-medium flex items-center space-x-0.5 transition ${
+                    settings.hapticsEnabled !== false
+                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                      : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                  }`}
+                  title="触觉震动反馈"
+                >
+                  <Smartphone className="w-3 h-3" />
+                  <span>{settings.hapticsEnabled !== false ? '震动' : '无震动'}</span>
                 </button>
               </div>
             </div>

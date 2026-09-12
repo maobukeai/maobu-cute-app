@@ -172,7 +172,7 @@ export interface AIImageGeneration {
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type AccentColor = 'wechat' | 'catpaw' | 'apple' | 'orange' | 'purple';
 export type DeviceFrame = 'mobile' | 'desktop';
-export type AppTab = 'plans' | 'notes' | 'vault' | 'ai' | 'settings';
+export type AppTab = 'dashboard' | 'plans' | 'notes' | 'vault' | 'ai' | 'settings';
 
 export interface WebDAVConfig {
   serverUrl: string;
@@ -197,6 +197,7 @@ export interface AppSettings {
   accentColor: AccentColor;
   deviceFrame: DeviceFrame;
   soundEnabled: boolean;
+  hapticsEnabled?: boolean;
   hasMasterPassword: boolean;
   activeTab: AppTab;
   webdav?: WebDAVConfig;
@@ -216,4 +217,6 @@ export interface FullAppBackup {
   aiImages: AIImageGeneration[];
   googleWarmingAccounts?: GoogleWarmingAccount[];
   settings: AppSettings;
+  vaultVerifier?: string;
+  passwordsCiphertext?: string;
 }

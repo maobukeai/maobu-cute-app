@@ -328,7 +328,44 @@ export async function fetchInboxMessages(
   return fetchFolderMessages(accessToken, folder);
 }
 
-// Send an Email via Microsoft API
+// Ensure account has a valid, non-expired accessToken. Auto-refreshes if needed.
+export async function ensureValidAccessToken(account: HotmailAccount): Promise<{
+  accessToken: string;
+  account: HotmailAccount;
+  refreshed: boolean;
+}> {
+  const bufferMs = 60 * 1000; // 1 minute safety buffer
+  const isExpired = !account.accessToken || !account.tokenExpiresAt || (Date.now() + bufferMs >= account.tokenExpiresAt);
+
+  if (!isExpired && account.accessToken) {
+    return {
+      accessToken: account.accessToken,
+      account,
+      refreshed: false,
+    };
+  }
+
+  const res = await refreshMicrosoftToken(account);
+  const tokenExpiresAt = Date.now() + Math.max(300, (res.expiresIn - 60)) * 1000;
+
+  const updatedAccount: HotmailAccount = {
+    ...account,
+    accessToken: res.accessToken,
+    refreshToken: res.refreshToken || account.refreshToken,
+    tokenExpiresAt,
+    status: 'valid',
+    lastCheckedAt: new Date().toISOString(),
+    lastErrorMessage: undefined,
+  };
+
+  return {
+    accessToken: res.accessToken,
+    account: updatedAccount,
+    refreshed: true,
+  };
+}
+
+// Send an Email via Microsoft API with full proxy and direct fallbacks
 export async function sendMicrosoftEmail(
   accessToken: string,
   toEmail: string,
@@ -353,33 +390,38 @@ export async function sendMicrosoftEmail(
     saveToSentItems: 'true',
   };
 
-  // Try Outlook REST API first
-  let ok = false;
-  try {
-    const res = await fetch('/api/ms-outlook/me/sendmail', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) ok = true;
-  } catch {}
+  const endpoints = [
+    // 1. Outlook REST API via proxy
+    '/api/ms-outlook/me/sendmail',
+    // 2. Outlook REST API direct
+    'https://outlook.office.com/api/v2.0/me/sendmail',
+    // 3. Microsoft Graph API via proxy
+    '/api/ms-graph/me/sendMail',
+    // 4. Microsoft Graph API direct
+    'https://graph.microsoft.com/v1.0/me/sendMail',
+  ];
 
-  if (!ok) {
-    // Try Graph API
-    const res = await fetch('/api/ms-graph/me/sendMail', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      throw new Error(`发送邮件失败 (${res.status})`);
+  let lastError = '';
+  for (const endpoint of endpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok || res.status === 202) {
+        return;
+      }
+      const errTxt = await res.text().catch(() => '');
+      lastError = `HTTP ${res.status}: ${errTxt.slice(0, 120)}`;
+    } catch (e: any) {
+      lastError = e.message || String(e);
     }
   }
+
+  throw new Error(`发送邮件失败: ${lastError || '所有发信端点均无法连接'}`);
 }
 

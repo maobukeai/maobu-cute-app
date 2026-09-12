@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    font-variant-numeric: tabular-nums;
     --theme-accent: #07C160;
     --theme-accent-light: #E8F8F0;
     --theme-accent-glow: rgba(7, 193, 96, 0.25);
@@ -21,15 +22,40 @@
 
   body {
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    user-select: none;
-    background-color: #F8F9FB;
+    background-color: #F8F9FA;
     color: #18181B;
+    font-variant-numeric: tabular-nums;
   }
 
   .dark body {
-    background-color: #0E0E12;
+    background-color: #0A0A0C;
     color: #F4F4F6;
+  }
+
+  /* Refined text selection: allow copy & selection on textual content */
+  input,
+  textarea,
+  [contenteditable="true"],
+  .select-text,
+  .bubble-self,
+  .bubble-other,
+  .markdown-content,
+  pre,
+  code,
+  article,
+  p {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Keep buttons, icons, and tactile bars non-selectable for app native feel */
+  button,
+  nav,
+  .tactile-press,
+  .select-none {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* Custom subtle iOS style scrollbars */
@@ -64,11 +90,11 @@
 
 /* App Background Surface with subtle ambient glow */
 .cat-bg-canvas {
-  background-color: #F6F7FA;
+  background-color: #F8F9FA;
   background-image: var(--app-bg-mesh);
 }
 .dark .cat-bg-canvas {
-  background-color: #0F0F14;
+  background-color: #0A0A0C;
   background-image: var(--app-bg-mesh);
 }
 
@@ -95,17 +121,21 @@
   -webkit-backdrop-filter: blur(16px);
 }
 
-/* Inset Grouped iOS Card */
+/* Inset Grouped iOS Card & Fluid Glass Card */
 .cat-card {
-  background: #FFFFFF;
-  border-radius: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 .dark .cat-card {
-  background: #18181E;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+  background: rgba(24, 24, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
 }
 
 /* Soft Squishy Press Feedback */

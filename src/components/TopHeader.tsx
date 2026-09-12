@@ -1,28 +1,39 @@
 import React, { useState } from 'react';
 import { AppTab, AccentColor } from '../types';
-import { Sparkles, Plus, Heart } from 'lucide-react';
+import { Sparkles, Plus, Heart, Search, Bot, LayoutGrid } from 'lucide-react';
 import { sound } from '../utils/sound';
+import { haptics } from '../utils/haptics';
 
 interface TopHeaderProps {
   activeTab: AppTab;
   accentColor: AccentColor;
   onQuickAdd?: () => void;
+  onOpenSearch?: () => void;
+  onOpenAI?: () => void;
+  onToggleDashboard?: () => void;
   titleOverride?: string;
   subtitleOverride?: string;
+  isDesktop?: boolean;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   activeTab,
   accentColor,
   onQuickAdd,
+  onOpenSearch,
+  onOpenAI,
+  onToggleDashboard,
   titleOverride,
   subtitleOverride,
+  isDesktop = false,
 }) => {
   const [showCatLove, setShowCatLove] = useState(false);
 
   const getTabTitle = () => {
     if (titleOverride) return titleOverride;
     switch (activeTab) {
+      case 'dashboard':
+        return '灵动全景看板';
       case 'plans':
         return '我的计划清单';
       case 'notes':
@@ -41,6 +52,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const getTabSubtitle = () => {
     if (subtitleOverride) return subtitleOverride;
     switch (activeTab) {
+      case 'dashboard':
+        return 'Bento Grid · 待办 / 灵感 / 2FA 聚合';
       case 'plans':
         return '今日事，今日毕 🐾';
       case 'notes':
@@ -73,13 +86,65 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   const handleAvatarClick = () => {
+    haptics.impactLight();
     sound.playCatPurr();
     setShowCatLove(true);
     setTimeout(() => setShowCatLove(false), 1400);
   };
 
+  if (isDesktop) {
+    return (
+      <header className="h-12 border-b border-black/[0.06] dark:border-white/[0.08] px-6 flex items-center justify-between z-10 shrink-0 select-none bg-white/60 dark:bg-[#15151C]/60 backdrop-blur-xl">
+        {/* Left: Breadcrumb and title */}
+        <div className="flex items-center space-x-2.5">
+          <div className="flex items-center text-xs text-zinc-400 dark:text-zinc-500">
+            <span>工作台</span>
+            <span className="mx-1.5 text-zinc-300 dark:text-zinc-600">/</span>
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{getTabTitle()}</span>
+          </div>
+          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+            · {getTabSubtitle()}
+          </span>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center space-x-2">
+          {onOpenAI && activeTab !== 'ai' && (
+            <button
+              onClick={() => {
+                haptics.impactLight();
+                sound.playTap();
+                onOpenAI();
+              }}
+              className="px-2.5 py-1 rounded-full bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 dark:hover:bg-pink-900/60 text-pink-600 dark:text-pink-300 text-xs font-medium flex items-center space-x-1 tactile-press transition-colors"
+              title="呼出 AI 伴侣"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>AI 伴侣</span>
+            </button>
+          )}
+
+          {onQuickAdd && (
+            <button
+              onClick={() => {
+                haptics.impactMedium();
+                sound.playTap();
+                onQuickAdd();
+              }}
+              className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center space-x-1 ${getAccentBg()} hover:opacity-95 tactile-press shadow-xs`}
+              title="新建"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>新建</span>
+            </button>
+          )}
+        </div>
+      </header>
+    );
+  }
+
   return (
-    <header className="glass-nav border-b border-zinc-200/60 dark:border-white/5 px-4 flex items-center justify-between z-20 shrink-0 select-none transition-colors pt-[env(safe-area-inset-top,0px)] h-[calc(54px+env(safe-area-inset-top,0px))] box-border">
+    <header className="glass-nav border-b border-black/[0.06] dark:border-white/[0.08] px-4 flex items-center justify-between z-20 shrink-0 select-none transition-all pt-[env(safe-area-inset-top,0px)] h-[calc(56px+env(safe-area-inset-top,0px))] box-border shadow-[0_4px_20px_rgba(0,0,0,0.02)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
       {/* Left branding with cute animated cat avatar */}
       <div className="flex items-center space-x-3">
         <div className="relative">
@@ -88,7 +153,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             className="relative group p-0.5 rounded-full tactile-press"
             title="点击摸摸猫猫 🐾"
           >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-pink-400 via-rose-300 to-amber-200 flex items-center justify-center text-base shadow-sm ring-2 ring-white/80 dark:ring-zinc-700/80 overflow-hidden animate-cat-float">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-pink-400 via-rose-300 to-amber-200 flex items-center justify-center text-base shadow-sm ring-2 ring-white/90 dark:ring-zinc-700/80 overflow-hidden animate-cat-float">
               🐱
             </div>
             {/* Online breathing dot */}
@@ -97,7 +162,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           {/* Floating Heart Tooltip */}
           {showCatLove && (
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-lg animate-scale-in whitespace-nowrap z-50 pointer-events-none">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-lg animate-scale-in whitespace-nowrap z-50 pointer-events-none">
               <Heart className="w-2.5 h-2.5 fill-current animate-ping" />
               <span>呼噜呼噜 🐾</span>
             </div>
@@ -119,18 +184,65 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right action */}
+      {/* Right actions */}
       <div className="flex items-center space-x-2">
+        {onOpenSearch && (
+          <button
+            onClick={() => {
+              haptics.impactLight();
+              sound.playTap();
+              onOpenSearch();
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-700/80 text-zinc-600 dark:text-zinc-300 tactile-press transition-colors"
+            title="快速全局搜索 (Cmd+K)"
+          >
+            <Search className="w-4 h-4" />
+          </button>
+        )}
+
+        {onToggleDashboard && (
+          <button
+            onClick={() => {
+              haptics.impactLight();
+              sound.playTap();
+              onToggleDashboard();
+            }}
+            className={`w-8 h-8 rounded-full flex items-center justify-center tactile-press transition-colors ${
+              activeTab === 'dashboard'
+                ? 'bg-rose-500 text-white shadow-xs'
+                : 'bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800 dark:hover:bg-zinc-700/80 text-zinc-600 dark:text-zinc-300'
+            }`}
+            title={activeTab === 'dashboard' ? '返回清单' : '查看全景看板 (Bento Grid)'}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+        )}
+
+        {onOpenAI && activeTab !== 'ai' && (
+          <button
+            onClick={() => {
+              haptics.impactLight();
+              sound.playTap();
+              onOpenAI();
+            }}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-pink-50 hover:bg-pink-100 dark:bg-pink-950/40 dark:hover:bg-pink-900/60 text-pink-600 dark:text-pink-300 tactile-press transition-colors"
+            title="AI 伴侣"
+          >
+            <Sparkles className="w-4 h-4" />
+          </button>
+        )}
+
         {onQuickAdd && (
           <button
             onClick={() => {
+              haptics.impactMedium();
               sound.playTap();
               onQuickAdd();
             }}
-            className={`w-7 h-7 rounded-full flex items-center justify-center ${getAccentBg()} hover:opacity-95 tactile-press`}
+            className={`w-8 h-8 rounded-full flex items-center justify-center ${getAccentBg()} hover:opacity-95 tactile-press`}
             title="新建"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4.5 h-4.5" />
           </button>
         )}
       </div>

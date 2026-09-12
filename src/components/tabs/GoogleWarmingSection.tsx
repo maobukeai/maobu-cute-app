@@ -44,6 +44,8 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { BottomSheet } from '../common/BottomSheet';
+import { haptics } from '../../utils/haptics';
 
 interface GoogleWarmingSectionProps {
   accounts: GoogleWarmingAccount[];
@@ -451,7 +453,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
     : null;
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#EDEDED] dark:bg-[#111111]">
+    <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas">
       {/* 1. Mobile-First Header Toolbar */}
       <div className="p-3 sm:p-3.5 bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-md border-b border-zinc-200/60 dark:border-zinc-800/60 shrink-0 space-y-2.5">
         {/* Row 1: App Branding & Title + Test Mode Toggle Switch */}
@@ -1039,154 +1041,17 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
         )}
       </div>
 
-      {/* 3. 14-Day Workspace Checklist Modal (今日任务核对与打卡) */}
-      {activeAccount && activeTaskDetails && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3.5 max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-2.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-extrabold text-sm shrink-0">
-                  D{activeAccount.currentDay || 1}
-                </div>
-                <div className="min-w-0">
-                  <h4 className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100 truncate">
-                    {activeAccount.email}
-                  </h4>
-                  <p className="text-[10px] text-zinc-400 truncate">
-                    {activeTaskDetails.title} · 当前第 {activeAccount.currentDay || 1}/14 天
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveAccount(null)}
-                className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Task Description & Checklist */}
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-              <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200/50 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                <p className="font-semibold mb-0.5 flex items-center space-x-1">
-                  <span>💡</span>
-                  <span>本日养号实操目标</span>
-                </p>
-                <p>{activeTaskDetails.description}</p>
-              </div>
-
-              {/* Action Checklist */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                  实操待办核验清单（点击打勾标记已完成）：
-                </div>
-                {activeTaskDetails.actions.map(act => {
-                  const isChecked = !!dayActionChecks[act.key];
-                  return (
-                    <div
-                      key={act.key}
-                      onClick={() => {
-                        sound.playTap();
-                        setDayActionChecks(prev => ({ ...prev, [act.key]: !prev[act.key] }));
-                      }}
-                      className={`p-3 rounded-xl border transition flex items-start space-x-2.5 cursor-pointer ${
-                        isChecked
-                          ? 'bg-green-50/80 dark:bg-green-950/40 border-green-300 dark:border-green-800/60'
-                          : 'bg-zinc-50 dark:bg-zinc-800/60 border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-100'
-                      }`}
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        {isChecked ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#07C160]" />
-                        ) : (
-                          <Square className="w-4 h-4 text-zinc-400" />
-                        )}
-                      </div>
-                      <span
-                        className={`text-xs leading-relaxed ${
-                          isChecked
-                            ? 'line-through text-zinc-400 font-medium'
-                            : 'text-zinc-800 dark:text-zinc-200 font-semibold'
-                        }`}
-                      >
-                        {act.text}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Account Quick Credentials Inspector */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs">
-                <div className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
-                  <span>🔑 账号凭据速查与一键复制</span>
-                  {activeAccount.country && (
-                    <span className="text-[10px] text-zinc-400 font-normal">
-                      归属地：{activeAccount.country}
-                    </span>
-                  )}
-                </div>
-
-                {activeAccount.password && (
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-zinc-400 shrink-0">登录密码：</span>
-                    <div className="flex items-center space-x-1.5 min-w-0">
-                      <span className="font-mono bg-zinc-200/60 dark:bg-zinc-700/60 px-2 py-0.5 rounded text-[11px] truncate select-all">
-                        {activeAccount.password}
-                      </span>
-                      <button
-                        onClick={() => copyText(activeAccount.password!, 'modal_pw')}
-                        className="text-zinc-400 hover:text-blue-500 shrink-0 p-1"
-                        title="复制密码"
-                      >
-                        {copiedId === 'modal_pw' ? (
-                          <Check className="w-3.5 h-3.5 text-green-500" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {totpMap[activeAccount.id] && (
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-zinc-400 shrink-0">2FA 实时口令：</span>
-                    <div className="flex items-center space-x-1.5 min-w-0">
-                      <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400 text-sm tracking-wider">
-                        {totpMap[activeAccount.id].code}
-                      </span>
-                      <button
-                        onClick={() => copyText(totpMap[activeAccount.id].code, 'modal_totp')}
-                        className="text-zinc-400 hover:text-blue-500 shrink-0 p-1"
-                        title="复制 2FA 口令"
-                      >
-                        {copiedId === 'modal_totp' ? (
-                          <Check className="w-3.5 h-3.5 text-green-500" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {activeAccount.backupCodes && (
-                  <div className="space-y-1 pt-1 border-t border-zinc-200/60 dark:border-zinc-700/60">
-                    <span className="text-[10px] text-zinc-400">备用安全码：</span>
-                    <div className="font-mono text-[11px] bg-zinc-200/50 dark:bg-zinc-700/50 p-2 rounded-lg whitespace-pre-wrap leading-relaxed select-all">
-                      {activeAccount.backupCodes}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Actions: Responsive stacked/flex */}
-            <div className="pt-2.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <div className="text-[10px] text-zinc-400 text-center sm:text-left">
+      {/* 3. 14-Day Workspace Checklist BottomSheet (今日任务核对与打卡) */}
+      <BottomSheet
+        isOpen={!!activeAccount && !!activeTaskDetails}
+        onClose={() => setActiveAccount(null)}
+        title={activeAccount ? `D${activeAccount.currentDay || 1} 任务 · ${activeAccount.email}` : ''}
+        subtitle={activeTaskDetails ? `${activeTaskDetails.title} · 当前第 ${activeAccount?.currentDay || 1}/14 天` : ''}
+        maxHeight="max-h-[92dvh]"
+        footer={
+          activeAccount && activeTaskDetails && (
+            <div className="space-y-2">
+              <div className="text-[10px] text-zinc-400 text-center">
                 {isActiveAccountWarmedToday
                   ? '⚠️ 今日已打卡 (开启顶部「测试打卡」可跳过24小时限制)'
                   : '核对各项实操无误后，点击右侧完成打卡'}
@@ -1194,22 +1059,27 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
 
               <div className="flex items-center space-x-2">
                 <button
+                  type="button"
                   onClick={() => setActiveAccount(null)}
-                  className="flex-1 sm:flex-initial px-3.5 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-semibold transition"
+                  className="flex-1 py-2.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-semibold transition"
                 >
                   关闭
                 </button>
 
                 {activeAccount.currentDay >= 14 ? (
-                  <div className="flex-1 sm:flex-initial px-3.5 py-2 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1">
+                  <div className="flex-1 py-2.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center space-x-1">
                     <Award className="w-4 h-4 text-emerald-600" />
                     <span>已圆满达成 14 天</span>
                   </div>
                 ) : (
                   <button
+                    type="button"
                     disabled={isActiveAccountWarmedToday}
-                    onClick={() => handleWarmStep(activeAccount)}
-                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 shadow-xs transition ${
+                    onClick={() => {
+                      haptics.impactMedium();
+                      handleWarmStep(activeAccount);
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 shadow-xs transition ${
                       isActiveAccountWarmedToday
                         ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white active:scale-95'
@@ -1221,373 +1091,479 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Multi-mode Import Modal (支持 3D平台 JSON 备份文件、文本多行、AI智能解析) */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3.5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center space-x-2">
-                <Upload className="w-5 h-5 text-amber-500" />
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  导入谷歌账号 (支持 3D平台备份)
-                </h4>
-              </div>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          )
+        }
+      >
+        {activeAccount && activeTaskDetails && (
+          <div className="space-y-3 pb-2">
+            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200/50 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+              <p className="font-semibold mb-0.5 flex items-center space-x-1">
+                <span>💡</span>
+                <span>本日养号实操目标</span>
+              </p>
+              <p>{activeTaskDetails.description}</p>
             </div>
 
-            {/* Import Tab Selector */}
-            <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold">
-              <button
-                onClick={() => setImportTab('file')}
-                className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
-                  importTab === 'file'
-                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                    : 'text-zinc-500'
-                }`}
-              >
-                📁 JSON 备份
-              </button>
-              <button
-                onClick={() => setImportTab('text')}
-                className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
-                  importTab === 'text'
-                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                    : 'text-zinc-500'
-                }`}
-              >
-                📝 文本导入
-              </button>
-              <button
-                onClick={() => setImportTab('ai')}
-                className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
-                  importTab === 'ai'
-                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
-                    : 'text-zinc-500'
-                }`}
-              >
-                ✨ AI 解析
-              </button>
+            {/* Action Checklist */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                实操待办核验清单（点击打勾标记已完成）：
+              </div>
+              {activeTaskDetails.actions.map(act => {
+                const isChecked = !!dayActionChecks[act.key];
+                return (
+                  <div
+                    key={act.key}
+                    onClick={() => {
+                      sound.playTap();
+                      haptics.selection();
+                      setDayActionChecks(prev => ({ ...prev, [act.key]: !prev[act.key] }));
+                    }}
+                    className={`p-3 rounded-xl border transition flex items-start space-x-2.5 cursor-pointer ${
+                      isChecked
+                        ? 'bg-green-50/80 dark:bg-green-950/40 border-green-300 dark:border-green-800/60'
+                        : 'bg-zinc-50 dark:bg-zinc-800/60 border-zinc-200/60 dark:border-zinc-700/60 hover:bg-zinc-100'
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      {isChecked ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#07C160]" />
+                      ) : (
+                        <Square className="w-4 h-4 text-zinc-400" />
+                      )}
+                    </div>
+                    <span
+                      className={`text-xs leading-relaxed ${
+                        isChecked
+                          ? 'line-through text-zinc-400 font-medium'
+                          : 'text-zinc-800 dark:text-zinc-200 font-semibold'
+                      }`}
+                    >
+                      {act.text}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Tab 1: JSON File Upload */}
-            {importTab === 'file' && (
-              <div className="py-6 px-3 border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-2xl text-center space-y-3">
-                <FileJson className="w-10 h-10 text-amber-500 mx-auto" />
-                <div>
-                  <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                    选择或拖放 3D 平台导出的 JSON 备份文件
-                  </p>
-                  <p className="text-[10px] text-zinc-400 mt-1">
-                    支持 <code className="font-mono">google-warming-backup-*.json</code>，完整恢复账号、密码、2FA、备用码与进度
-                  </p>
-                </div>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportFileSelected}
-                  className="hidden"
-                />
-
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition"
-                >
-                  选择 JSON 文件并导入
-                </button>
-              </div>
-            )}
-
-            {/* Tab 2 & 3: Textarea input */}
-            {(importTab === 'text' || importTab === 'ai') && (
-              <div className="space-y-2.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-                  <span className="text-zinc-500 text-[11px]">
-                    {importTab === 'text'
-                      ? '支持 邮箱----密码----辅助邮箱----2FA密钥----地区 格式'
-                      : '粘贴任意格式的未结构化账号文本，AI 自动提取关键字段'}
+            {/* Account Quick Credentials Inspector */}
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 space-y-2 text-xs">
+              <div className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                <span>🔑 账号凭据速查与一键复制</span>
+                {activeAccount.country && (
+                  <span className="text-[10px] text-zinc-400 font-normal">
+                    归属地：{activeAccount.country}
                   </span>
-                  <div className="flex items-center space-x-1 shrink-0">
-                    <span className="text-zinc-400 text-[10px]">默认分类:</span>
-                    <input
-                      type="text"
-                      value={importCategory}
-                      onChange={e => setImportCategory(e.target.value)}
-                      className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs w-20 focus:outline-none"
-                    />
+                )}
+              </div>
+
+              {activeAccount.password && (
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-zinc-400 shrink-0">登录密码：</span>
+                  <div className="flex items-center space-x-1.5 min-w-0">
+                    <span className="font-mono bg-zinc-200/60 dark:bg-zinc-700/60 px-2 py-0.5 rounded text-[11px] truncate select-all">
+                      {activeAccount.password}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyText(activeAccount.password!, 'modal_pw')}
+                      className="text-zinc-400 hover:text-blue-500 shrink-0 p-1"
+                      title="复制密码"
+                    >
+                      {copiedId === 'modal_pw' ? (
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   </div>
                 </div>
+              )}
 
-                <textarea
-                  value={importText}
-                  onChange={e => setImportText(e.target.value)}
-                  placeholder={
-                    importTab === 'text'
-                      ? `example@gmail.com----pwd123----rec@mail.com----JBSWY3DPEHPK3PXP----美国
-sample2@gmail.com----pwd456----rec2@mail.com----MZXW6YTBOI======----日本`
-                      : '粘贴任何形式的文本，AI 会自动识别 Gmail、密码、辅助邮箱、两步验证秘钥等...'
-                  }
-                  className="w-full h-32 sm:h-36 p-2.5 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200/80 dark:border-zinc-700/80 text-xs font-mono resize-none focus:outline-none focus:ring-1.5 focus:ring-amber-500"
-                />
-
-                <div className="flex items-center justify-end space-x-2 pt-1">
-                  <button
-                    onClick={() => {
-                      const sample = `example1@gmail.com----Password123----recovery1@example.com----JBSWY3DPEHPK3PXP----美国----3191 6344----GCP----主力开发号
-example2@gmail.com----Password456----recovery2@example.com----MZXW6YTBOI======----中国香港----5521 8892----AdSense----创作者频道`;
-                      setImportText(sample);
-                    }}
-                    className="px-3 py-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 text-xs"
-                  >
-                    填入示范数据
-                  </button>
-
-                  <button
-                    disabled={isAiParsing}
-                    onClick={importTab === 'text' ? handleImportTextSubmit : handleAiParseSubmit}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center space-x-1 transition"
-                  >
-                    {isAiParsing ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : importTab === 'ai' ? (
-                      <Sparkles className="w-3.5 h-3.5" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5" />
-                    )}
-                    <span>{isAiParsing ? 'AI 解析中...' : importTab === 'ai' ? 'AI 识别并导入' : '立即解析导入'}</span>
-                  </button>
+              {totpMap[activeAccount.id] && (
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-zinc-400 shrink-0">2FA 实时口令：</span>
+                  <div className="flex items-center space-x-1.5 min-w-0">
+                    <span className="font-mono font-extrabold text-blue-600 dark:text-blue-400 text-sm tracking-wider">
+                      {totpMap[activeAccount.id].code}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyText(totpMap[activeAccount.id].code, 'modal_totp')}
+                      className="text-zinc-400 hover:text-blue-500 shrink-0 p-1"
+                      title="复制 2FA 口令"
+                    >
+                      {copiedId === 'modal_totp' ? (
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              )}
 
-      {/* 5. Password Generator Modal */}
-      {showPasswordGenModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center space-x-2">
-                <Key className="w-4 h-4 text-amber-500" />
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">强密码生成器</h4>
+              {activeAccount.backupCodes && (
+                <div className="space-y-1 pt-1 border-t border-zinc-200/60 dark:border-zinc-700/60">
+                  <span className="text-[10px] text-zinc-400">备用安全码：</span>
+                  <div className="font-mono text-[11px] bg-zinc-200/50 dark:bg-zinc-700/50 p-2 rounded-lg whitespace-pre-wrap leading-relaxed select-all">
+                    {activeAccount.backupCodes}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* 4. Multi-mode Import BottomSheet (支持 3D平台 JSON 备份文件、文本多行、AI智能解析) */}
+      <BottomSheet
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="导入谷歌账号"
+        subtitle="支持 3D平台 JSON 备份、多行文本及 AI 智能解析"
+        maxHeight="max-h-[92dvh]"
+      >
+        <div className="space-y-3.5 pb-2">
+          {/* Import Tab Selector */}
+          <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                sound.playTap();
+                haptics.selection();
+                setImportTab('file');
+              }}
+              className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
+                importTab === 'file'
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500'
+              }`}
+            >
+              📁 JSON 备份
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sound.playTap();
+                haptics.selection();
+                setImportTab('text');
+              }}
+              className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
+                importTab === 'text'
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500'
+              }`}
+            >
+              📝 文本导入
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sound.playTap();
+                haptics.selection();
+                setImportTab('ai');
+              }}
+              className={`py-1.5 px-1 rounded-lg transition text-center truncate ${
+                importTab === 'ai'
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xs'
+                  : 'text-zinc-500'
+              }`}
+            >
+              ✨ AI 解析
+            </button>
+          </div>
+
+          {/* Tab 1: JSON File Upload */}
+          {importTab === 'file' && (
+            <div className="py-6 px-3 border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-2xl text-center space-y-3">
+              <FileJson className="w-10 h-10 text-amber-500 mx-auto" />
+              <div>
+                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  选择或拖放 3D 平台导出的 JSON 备份文件
+                </p>
+                <p className="text-[10px] text-zinc-400 mt-1">
+                  支持 <code className="font-mono">google-warming-backup-*.json</code>，完整恢复账号、密码、2FA、备用码与进度
+                </p>
               </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportFileSelected}
+                className="hidden"
+              />
+
               <button
-                onClick={() => setShowPasswordGenModal(false)}
-                className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition"
               >
-                <X className="w-5 h-5" />
+                选择 JSON 文件并导入
               </button>
             </div>
+          )}
 
-            <div className="space-y-3">
-              <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-between">
-                <span className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100 break-all select-all">
-                  {generatedPassword || '点击下方重新生成'}
+          {/* Tab 2 & 3: Textarea input */}
+          {(importTab === 'text' || importTab === 'ai') && (
+            <div className="space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+                <span className="text-zinc-500 text-[11px]">
+                  {importTab === 'text'
+                    ? '支持 邮箱----密码----辅助邮箱----2FA密钥----地区 格式'
+                    : '粘贴任意格式的未结构化账号文本，AI 自动提取关键字段'}
                 </span>
+                <div className="flex items-center space-x-1 shrink-0">
+                  <span className="text-zinc-400 text-[10px]">默认分类:</span>
+                  <input
+                    type="text"
+                    value={importCategory}
+                    onChange={e => setImportCategory(e.target.value)}
+                    className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-xs w-20 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <textarea
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder={
+                  importTab === 'text'
+                    ? `example@gmail.com----pwd123----rec@mail.com----JBSWY3DPEHPK3PXP----美国
+sample2@gmail.com----pwd456----rec2@mail.com----MZXW6YTBOI======----日本`
+                    : '粘贴任何形式的文本，AI 会自动识别 Gmail、密码、辅助邮箱、两步验证秘钥等...'
+                }
+                className="w-full h-32 sm:h-36 p-2.5 bg-zinc-50 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200/80 dark:border-zinc-700/80 text-xs font-mono resize-none focus:outline-none focus:ring-1.5 focus:ring-amber-500"
+              />
+
+              <div className="flex items-center justify-end space-x-2 pt-1">
                 <button
-                  onClick={() => copyText(generatedPassword, 'gen_pw')}
-                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-bold shadow-xs shrink-0 ml-2"
+                  type="button"
+                  onClick={() => {
+                    const sample = `example1@gmail.com----Password123----recovery1@example.com----JBSWY3DPEHPK3PXP----美国----3191 6344----GCP----主力开发号
+example2@gmail.com----Password456----recovery2@example.com----MZXW6YTBOI======----中国香港----5521 8892----AdSense----创作者频道`;
+                    setImportText(sample);
+                  }}
+                  className="px-3 py-1.5 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 text-xs"
                 >
-                  {copiedId === 'gen_pw' ? '已复制' : '复制'}
+                  填入示范数据
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isAiParsing}
+                  onClick={importTab === 'text' ? handleImportTextSubmit : handleAiParseSubmit}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs flex items-center space-x-1 transition"
+                >
+                  {isAiParsing ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : importTab === 'ai' ? (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isAiParsing ? 'AI 解析中...' : importTab === 'ai' ? 'AI 识别并导入' : '立即解析导入'}</span>
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
 
-              <div className="flex items-center justify-between text-xs text-zinc-500">
-                <span>密码长度：{genPasswordLength} 位</span>
-                <input
-                  type="range"
-                  min="8"
-                  max="32"
-                  value={genPasswordLength}
-                  onChange={e => setGenPasswordLength(Number(e.target.value))}
-                  className="w-32 accent-amber-500 cursor-pointer"
-                />
-              </div>
+      {/* 5. Password Generator BottomSheet */}
+      <BottomSheet
+        isOpen={showPasswordGenModal}
+        onClose={() => setShowPasswordGenModal(false)}
+        title="强密码生成器"
+        subtitle="快速生成安全随机密码"
+      >
+        <div className="space-y-4 pb-2">
+          <div className="p-3 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl flex items-center justify-between">
+            <span className="font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100 break-all select-all">
+              {generatedPassword || '点击下方重新生成'}
+            </span>
+            <button
+              type="button"
+              onClick={() => copyText(generatedPassword, 'gen_pw')}
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white rounded-lg text-xs font-bold shadow-xs shrink-0 ml-2"
+            >
+              {copiedId === 'gen_pw' ? '已复制' : '复制'}
+            </button>
+          </div>
 
-              <button
-                onClick={handleGeneratePassword}
-                className="w-full py-2 bg-zinc-200/80 dark:bg-zinc-800/80 hover:bg-zinc-300 dark:hover:bg-zinc-700 active:scale-95 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>换一个更复杂的强密码</span>
-              </button>
+          <div className="flex items-center justify-between text-xs text-zinc-500">
+            <span>密码长度：{genPasswordLength} 位</span>
+            <input
+              type="range"
+              min="8"
+              max="32"
+              value={genPasswordLength}
+              onChange={e => setGenPasswordLength(Number(e.target.value))}
+              className="w-32 accent-amber-500 cursor-pointer"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              sound.playTap();
+              haptics.selection();
+              handleGeneratePassword();
+            }}
+            className="w-full py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 active:scale-95 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>换一个更复杂的强密码</span>
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* 6. Account Edit / Create BottomSheet */}
+      <BottomSheet
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title={editingAccount.id ? '编辑谷歌账号详情' : '添加新的谷歌账号'}
+        subtitle="支持 2FA、密码与备用安全码管理"
+        maxHeight="max-h-[92dvh]"
+      >
+        <form onSubmit={handleSaveAccount} className="space-y-3 pb-2 text-xs">
+          <div>
+            <label className="block text-zinc-400 mb-1 font-medium">Google / Gmail 邮箱 (必填)</label>
+            <input
+              type="email"
+              required
+              value={editingAccount.email || ''}
+              onChange={e => setEditingAccount({ ...editingAccount, email: e.target.value })}
+              placeholder="your.account@gmail.com"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+            />
+          </div>
+
+          {/* Password & Recovery Email: Stack on mobile, 2 cols on sm */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">登录密码</label>
+              <input
+                type="text"
+                value={editingAccount.password || ''}
+                onChange={e => setEditingAccount({ ...editingAccount, password: e.target.value })}
+                placeholder="密码"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">辅助恢复邮箱</label>
+              <input
+                type="email"
+                value={editingAccount.recoveryEmail || ''}
+                onChange={e => setEditingAccount({ ...editingAccount, recoveryEmail: e.target.value })}
+                placeholder="recovery@..."
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+              />
             </div>
           </div>
-        </div>
-      )}
 
-      {/* 6. Account Edit / Create Modal (Mobile-Optimized Responsive Grid with Pinned Footer) */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <form
-            onSubmit={handleSaveAccount}
-            className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in max-h-[88vh] flex flex-col"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-2.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-              <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {editingAccount.id ? '编辑谷歌账号详情' : '添加新的谷歌账号'}
-              </h4>
-              <button
-                type="button"
-                onClick={() => setShowEditModal(false)}
-                className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          {/* 2FA Secret & Country: Stack on mobile, 2 cols on sm */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">2FA 密钥 (Base32)</label>
+              <input
+                type="text"
+                value={editingAccount.twoFASecret || ''}
+                onChange={e => setEditingAccount({ ...editingAccount, twoFASecret: e.target.value.toUpperCase() })}
+                placeholder="JBSWY3DPEHPK3PXP"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono"
+              />
             </div>
-
-            {/* Scrollable Form Body */}
-            <div className="flex-1 overflow-y-auto py-2.5 space-y-3 pr-1 text-xs">
-              <div>
-                <label className="block text-zinc-400 mb-1 font-medium">Google / Gmail 邮箱 (必填)</label>
-                <input
-                  type="email"
-                  required
-                  value={editingAccount.email || ''}
-                  onChange={e => setEditingAccount({ ...editingAccount, email: e.target.value })}
-                  placeholder="your.account@gmail.com"
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                />
-              </div>
-
-              {/* Password & Recovery Email: Stack on mobile, 2 cols on sm */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">登录密码</label>
-                  <input
-                    type="text"
-                    value={editingAccount.password || ''}
-                    onChange={e => setEditingAccount({ ...editingAccount, password: e.target.value })}
-                    placeholder="密码"
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">辅助恢复邮箱</label>
-                  <input
-                    type="email"
-                    value={editingAccount.recoveryEmail || ''}
-                    onChange={e => setEditingAccount({ ...editingAccount, recoveryEmail: e.target.value })}
-                    placeholder="recovery@..."
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                  />
-                </div>
-              </div>
-
-              {/* 2FA Secret & Country: Stack on mobile, 2 cols on sm */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">2FA 密钥 (Base32)</label>
-                  <input
-                    type="text"
-                    value={editingAccount.twoFASecret || ''}
-                    onChange={e => setEditingAccount({ ...editingAccount, twoFASecret: e.target.value.toUpperCase() })}
-                    placeholder="JBSWY3DPEHPK3PXP"
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">归属国家/地区</label>
-                  <input
-                    type="text"
-                    value={editingAccount.country || ''}
-                    onChange={e => setEditingAccount({ ...editingAccount, country: e.target.value })}
-                    placeholder="如：美国、中国香港、日本"
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                  />
-                </div>
-              </div>
-
-              {/* Category, Current Day, Status: Stack on mobile, 3 cols on sm */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">分组/分类</label>
-                  <input
-                    type="text"
-                    value={editingAccount.category || '未分类'}
-                    onChange={e => setEditingAccount({ ...editingAccount, category: e.target.value })}
-                    placeholder="GCP / AdSense"
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">当前阶段天数</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="14"
-                    value={editingAccount.currentDay || 1}
-                    onChange={e => setEditingAccount({ ...editingAccount, currentDay: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 mb-1 font-medium">养号状态</label>
-                  <select
-                    value={editingAccount.status || 'warming'}
-                    onChange={e => setEditingAccount({ ...editingAccount, status: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                  >
-                    <option value="warming">🌱 养号中</option>
-                    <option value="completed">🏆 已出师</option>
-                    <option value="paused">⏸️ 已暂停</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1 font-medium">备用安全码 (8 位数字，空格或换行分隔)</label>
-                <textarea
-                  value={editingAccount.backupCodes || ''}
-                  onChange={e => setEditingAccount({ ...editingAccount, backupCodes: e.target.value })}
-                  placeholder="3191 6344 6829 7625 9012 4321..."
-                  className="w-full h-16 p-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-zinc-400 mb-1 font-medium">备注信息</label>
-                <input
-                  type="text"
-                  value={editingAccount.note || ''}
-                  onChange={e => setEditingAccount({ ...editingAccount, note: e.target.value })}
-                  placeholder="用于海外业务/Claude绑卡/YouTube开通等"
-                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
-                />
-              </div>
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">归属国家/地区</label>
+              <input
+                type="text"
+                value={editingAccount.country || ''}
+                onChange={e => setEditingAccount({ ...editingAccount, country: e.target.value })}
+                placeholder="如：美国、中国香港、日本"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+              />
             </div>
+          </div>
 
-            {/* Pinned Action Footer */}
-            <div className="flex items-center justify-end space-x-2 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-semibold transition"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-[#07C160] hover:bg-[#06AD56] active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition"
-              >
-                保存账号
-              </button>
+          {/* Category, Current Day, Status: Stack on mobile, 3 cols on sm */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">分组/分类</label>
+              <input
+                type="text"
+                value={editingAccount.category || '未分类'}
+                onChange={e => setEditingAccount({ ...editingAccount, category: e.target.value })}
+                placeholder="GCP / AdSense"
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+              />
             </div>
-          </form>
-        </div>
-      )}
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">当前阶段天数</label>
+              <input
+                type="number"
+                min="1"
+                max="14"
+                value={editingAccount.currentDay || 1}
+                onChange={e => setEditingAccount({ ...editingAccount, currentDay: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+              />
+            </div>
+            <div>
+              <label className="block text-zinc-400 mb-1 font-medium">养号状态</label>
+              <select
+                value={editingAccount.status || 'warming'}
+                onChange={e => setEditingAccount({ ...editingAccount, status: e.target.value as any })}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+              >
+                <option value="warming">🌱 养号中</option>
+                <option value="completed">🏆 已出师</option>
+                <option value="paused">⏸️ 已暂停</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-zinc-400 mb-1 font-medium">备用安全码 (8 位数字，空格或换行分隔)</label>
+            <textarea
+              value={editingAccount.backupCodes || ''}
+              onChange={e => setEditingAccount({ ...editingAccount, backupCodes: e.target.value })}
+              placeholder="3191 6344 6829 7625 9012 4321..."
+              className="w-full h-16 p-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160] font-mono resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-zinc-400 mb-1 font-medium">备注信息</label>
+            <input
+              type="text"
+              value={editingAccount.note || ''}
+              onChange={e => setEditingAccount({ ...editingAccount, note: e.target.value })}
+              placeholder="用于海外业务/Claude绑卡/YouTube开通等"
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800/80 rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 focus:outline-none focus:ring-1.5 focus:ring-[#07C160]"
+            />
+          </div>
+
+          {/* Pinned Action Footer */}
+          <div className="flex items-center justify-end space-x-2 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowEditModal(false)}
+              className="px-4 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl text-xs font-semibold transition"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-[#07C160] hover:bg-[#06AD56] active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition"
+            >
+              保存账号
+            </button>
+          </div>
+        </form>
+      </BottomSheet>
     </div>
   );
 };

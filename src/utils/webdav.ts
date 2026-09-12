@@ -3,13 +3,13 @@ import { WebDAVConfig, WebDAVBackupItem, FullAppBackup } from '../types';
 
 export const DEFAULT_WEBDAV_CONFIG: WebDAVConfig = {
   serverUrl: 'https://dav.jianguoyun.com/dav/',
-  username: '2026958851@qq.com',
-  password: 'acnceetfpeb6rku4',
+  username: '',
+  password: '',
   remoteDir: 'MaobuCute',
   retentionDays: 15,
-  isReady: true,
+  isReady: false,
   lastUploadedAt: undefined,
-  lastRestoredAt: '2026/09/02 23:14',
+  lastRestoredAt: undefined,
 };
 
 function formatBasicAuth(username: string, pass: string): string {
@@ -46,21 +46,34 @@ async function webdavRequest(
     ...extraHeaders,
   };
 
-  // Try local proxy endpoint first
-  const proxyUrl = `/api/webdav-proxy?target=${encodeURIComponent(url)}`;
+  const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
+  const isLocalDev = !isNative && typeof window !== 'undefined' && window.location?.origin?.includes('localhost');
 
-  let response: Response;
-  try {
-    response = await fetch(proxyUrl, {
-      method,
-      headers: {
-        ...headers,
-        'X-Target-Url': url,
-      },
-      body: body as any,
-    });
-  } catch {
-    // If proxy call fails, attempt direct fetch
+  let response: Response | null = null;
+
+  // Try local proxy endpoint in dev server
+  if (isLocalDev) {
+    try {
+      const proxyUrl = `/api/webdav-proxy?target=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, {
+        method,
+        headers: {
+          ...headers,
+          'X-Target-Url': url,
+        },
+        body: body as any,
+      });
+      // Fallback to direct fetch if proxy endpoint 404s (e.g. preview mode or missing route)
+      if (res.status !== 404) {
+        response = res;
+      }
+    } catch {
+      // If proxy call network fails, fallback to direct fetch
+    }
+  }
+
+  // Direct fetch for native mobile (CapacitorHttp), Electron, or when dev proxy is bypassed/404
+  if (!response) {
     response = await fetch(url, {
       method,
       headers,
@@ -72,7 +85,7 @@ async function webdavRequest(
   return {
     status: response.status,
     text,
-    ok: response.status >= 200 && response.status < 300 || response.status === 207,
+    ok: (response.status >= 200 && response.status < 300) || response.status === 207,
   };
 }
 
@@ -166,12 +179,25 @@ export async function listWebDAVBackups(config: WebDAVConfig): Promise<WebDAVBac
 
   const parser = new DOMParser();
   const xml = parser.parseFromString(res.text, 'text/xml');
-  const responses = Array.from(xml.querySelectorAll('response, d\\:response'));
+  const allElements = Array.from(xml.getElementsByTagName('*'));
+  const responses = allElements.filter(
+    el => (el.localName || el.nodeName.split(':').pop() || '').toLowerCase() === 'response'
+  );
 
   const items: WebDAVBackupItem[] = [];
 
+  function findDescendant(parent: Element, targetName: string): Element | null {
+    const target = targetName.toLowerCase();
+    const children = Array.from(parent.getElementsByTagName('*'));
+    return (
+      children.find(
+        c => (c.localName || c.nodeName.split(':').pop() || '').toLowerCase() === target
+      ) || null
+    );
+  }
+
   for (const resp of responses) {
-    const hrefNode = resp.querySelector('href, d\\:href');
+    const hrefNode = findDescendant(resp, 'href');
     if (!hrefNode) continue;
     const rawHref = decodeURIComponent(hrefNode.textContent || '');
     const cleanHref = rawHref.replace(/\/+$/, '');
@@ -180,8 +206,8 @@ export async function listWebDAVBackups(config: WebDAVConfig): Promise<WebDAVBac
     // Only include our json backups
     if (!fileName.endsWith('.json') || !fileName.startsWith('maobu_backup')) continue;
 
-    const modifiedNode = resp.querySelector('getlastmodified, d\\:getlastmodified');
-    const lengthNode = resp.querySelector('getcontentlength, d\\:getcontentlength');
+    const modifiedNode = findDescendant(resp, 'getlastmodified');
+    const lengthNode = findDescendant(resp, 'getcontentlength');
 
     const lastModified = modifiedNode?.textContent ? new Date(modifiedNode.textContent).toISOString() : new Date().toISOString();
     const size = lengthNode?.textContent ? parseInt(lengthNode.textContent, 10) : 0;

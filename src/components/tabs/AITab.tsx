@@ -9,6 +9,7 @@ import {
 } from '../../types';
 import { db } from '../../utils/storage';
 import { sound } from '../../utils/sound';
+import { MarkdownPreview } from '../MarkdownPreview';
 import {
   streamChatCompletion,
   generateAIImage,
@@ -46,7 +47,10 @@ import {
   Eye,
   EyeOff,
   Brain,
+  User,
 } from 'lucide-react';
+import { BottomSheet } from '../common/BottomSheet';
+import { haptics } from '../../utils/haptics';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -348,21 +352,55 @@ export const AITab: React.FC<AITabProps> = ({
         },
       });
 
-      // Finish streaming successfully
+      // Finish streaming successfully: clear isStreaming on message and persist latest state to DB
+      onUpdateSessions(prev => {
+        const nextSessions = prev.map(s => {
+          if (s.id === currentSessionId) {
+            const nextMsgs = s.messages.map(m =>
+              m.id === assistantMsgId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    isReasoning: false,
+                  }
+                : m
+            );
+            return { ...s, messages: nextMsgs, updatedAt: new Date().toISOString() };
+          }
+          return s;
+        });
+        db.saveAISessions(nextSessions);
+        return nextSessions;
+      });
       setIsStreaming(false);
       sound.playTap();
-      // Sync final to DB
-      setTimeout(() => {
-        db.saveAISessions(sessions);
-      }, 500);
     } catch (err: any) {
       if (err.name === 'AbortError') {
         console.log('User aborted generation');
+        onUpdateSessions(prev => {
+          const nextSessions = prev.map(s => {
+            if (s.id === currentSessionId) {
+              const nextMsgs = s.messages.map(m =>
+                m.id === assistantMsgId
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      isReasoning: false,
+                    }
+                  : m
+              );
+              return { ...s, messages: nextMsgs, updatedAt: new Date().toISOString() };
+            }
+            return s;
+          });
+          db.saveAISessions(nextSessions);
+          return nextSessions;
+        });
       } else {
         console.error('Chat error:', err);
         const friendlyError = formatFriendlyAIError(err.message);
-        onUpdateSessions(prev =>
-          prev.map(s => {
+        onUpdateSessions(prev => {
+          const nextSessions = prev.map(s => {
             if (s.id === currentSessionId) {
               const nextMsgs = s.messages.map(m =>
                 m.id === assistantMsgId
@@ -375,11 +413,13 @@ export const AITab: React.FC<AITabProps> = ({
                     }
                   : m
               );
-              return { ...s, messages: nextMsgs };
+              return { ...s, messages: nextMsgs, updatedAt: new Date().toISOString() };
             }
             return s;
-          })
-        );
+          });
+          db.saveAISessions(nextSessions);
+          return nextSessions;
+        });
       }
       setIsStreaming(false);
     }
@@ -788,104 +828,168 @@ export const AITab: React.FC<AITabProps> = ({
 
             {/* Chat Messages List (WeChat Style Bubbles) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-              {currentSession?.messages.map((msg, idx) => {
-                const isUser = msg.role === 'user';
-                return (
-                  <div
-                    key={msg.id || idx}
-                    className={`flex items-start space-x-2.5 ${
-                      isUser ? 'flex-row-reverse space-x-reverse' : ''
-                    }`}
-                  >
-                    {/* Avatar */}
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-xs select-none">
-                      {isUser ? (
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-xs">
-                          我
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-300 to-amber-200 flex items-center justify-center text-sm ring-1 ring-white">
-                          {activeSkill?.icon || '🐱'}
-                        </div>
-                      )}
+              {(!currentSession || currentSession.messages.length === 0) ? (
+                <div className="py-8 px-2 flex flex-col items-center justify-center text-center space-y-5 animate-fade-in my-auto">
+                  {/* Glowing Assistant Emblem */}
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-400 via-teal-500 to-cyan-500 p-0.5 shadow-ios flex items-center justify-center">
+                      <div className="w-full h-full rounded-[22px] bg-white dark:bg-[#15151C] flex items-center justify-center text-2xl">
+                        {activeSkill?.icon || '🐱'}
+                      </div>
                     </div>
+                    <div className="absolute -bottom-1 -right-1 p-1 bg-[#07C160] text-white rounded-full ring-2 ring-white dark:ring-[#15151C] shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                    </div>
+                  </div>
 
-                    {/* Message Bubble */}
-                    <div className="max-w-[82%] space-y-1">
-                      {/* Thinking Process Accordion (深度思考链) */}
-                      {!isUser && msg.reasoningContent && (
-                        <ThinkingProcessCard
-                          reasoning={msg.reasoningContent}
-                          isReasoning={msg.isReasoning || (msg.isStreaming && !msg.content)}
-                          durationSeconds={msg.reasoningDurationSeconds}
-                        />
-                      )}
+                  {/* Title & Greeting */}
+                  <div className="space-y-1.5 max-w-xs">
+                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                      {activeSkill?.name ? `你好！我是${activeSkill.name}` : '你好！我是猫步智能助理'}
+                    </h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      {activeSkill?.systemPrompt
+                        ? (activeSkill.systemPrompt.length > 70 ? activeSkill.systemPrompt.slice(0, 68) + '...' : activeSkill.systemPrompt)
+                        : '随时为你解答疑问、撰写文案、编写代码或整理备忘，开启全新的灵感之旅。'}
+                    </p>
+                  </div>
 
-                      <div
-                        className={`p-3 text-xs sm:text-sm leading-relaxed ${
-                          isUser ? 'bubble-self' : 'bubble-other'
-                        }`}
+                  {/* 4 Quick Prompt Starter Chips */}
+                  <div className="w-full max-w-sm grid grid-cols-2 gap-2 pt-2 text-left">
+                    {[
+                      { icon: '📝', title: '今日规划', desc: '制定高效日程与作息', prompt: '请帮我梳理今天的重点任务，按四象限法制定一份高效日程规划。' },
+                      { icon: '💡', title: '灵感创意', desc: '头脑风暴与文案生成', prompt: '请给我 5 个针对当下热门科技趋势的创新项目点子。' },
+                      { icon: '💻', title: '代码优化', desc: '重构与审查代码片段', prompt: '请作为资深架构师，帮我审查并优化一段 React + TypeScript 代码。' },
+                      { icon: '✨', title: '小红书种草', desc: '生成高赞爆款文案', prompt: '请以生动真诚的博主口吻，写一篇吸引人的小红书数码好物种草笔记。' },
+                    ].map(item => (
+                      <button
+                        key={item.title}
+                        type="button"
+                        onClick={() => {
+                          setInputMessage(item.prompt);
+                          sound.playTap();
+                          haptics.selection();
+                          textareaRef.current?.focus();
+                        }}
+                        className="p-3 rounded-2xl bg-white/80 dark:bg-white/5 hover:bg-zinc-100/90 dark:hover:bg-white/10 border border-zinc-200/60 dark:border-white/5 shadow-ios-sm transition-all tactile-press text-left space-y-1 group"
                       >
-                        {msg.content ? (
-                          <div className="whitespace-pre-wrap select-text">{msg.content}</div>
-                        ) : msg.isStreaming ? (
-                          msg.isReasoning ? (
-                            <div className="text-zinc-400 italic text-xs flex items-center space-x-1.5 py-0.5">
-                              <Sparkles className="w-3 h-3 text-amber-500 animate-spin" />
-                              <span>正在深度思考并组织回复...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center space-x-1.5 text-zinc-400 py-1">
-                              <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce"></span>
-                              <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]"></span>
-                              <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]"></span>
-                            </div>
-                          )
-                        ) : msg.error ? (
-                          <div className="space-y-2 text-amber-800 dark:text-amber-200">
-                            <div className="flex items-start space-x-2">
-                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                              <div className="leading-relaxed">
-                                <p className="font-semibold">{formatFriendlyAIError(msg.error)}</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                sound.playTap();
-                                setSubTab('providers');
-                              }}
-                              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-medium text-[11px] flex items-center space-x-1 shadow-xs"
-                            >
-                              <Sliders className="w-3 h-3" />
-                              <span>前往【模型配置】更新密钥或切换端点</span>
-                            </button>
+                        <div className="flex items-center space-x-1.5">
+                          <span className="text-base">{item.icon}</span>
+                          <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-[#07C160] transition-colors">
+                            {item.title}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 line-clamp-1">
+                          {item.desc}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                currentSession.messages.map((msg, idx) => {
+                  const isUser = msg.role === 'user';
+                  return (
+                    <div
+                      key={msg.id || idx}
+                      className={`flex items-start space-x-2.5 ${
+                        isUser ? 'flex-row-reverse space-x-reverse' : ''
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 shadow-xs select-none">
+                        {isUser ? (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-zinc-700 to-zinc-900 dark:from-zinc-600 dark:to-zinc-800 text-white flex items-center justify-center font-bold text-xs ring-1 ring-white/20 shadow-xs">
+                            <User className="w-4 h-4 text-white" />
                           </div>
                         ) : (
-                          <span className="text-zinc-400 italic">空消息</span>
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-300 to-amber-200 flex items-center justify-center text-sm ring-1 ring-white">
+                            {activeSkill?.icon || '🐱'}
+                          </div>
                         )}
                       </div>
 
-                      {/* Message Actions */}
-                      {!isUser && msg.content && !msg.isStreaming && (
-                        <div className="flex items-center space-x-2 px-1 text-[10px] text-zinc-400">
-                          <button
-                            onClick={() => copyWithFeedback(msg.content, msg.id)}
-                            className="hover:text-zinc-700 dark:hover:text-zinc-200 flex items-center space-x-1"
-                          >
-                            {copiedMsgId === msg.id ? (
-                              <Check className="w-3 h-3 text-[#07C160]" />
+                      {/* Message Bubble */}
+                      <div className="max-w-[82%] space-y-1">
+                        {/* Thinking Process Accordion (深度思考链) */}
+                        {!isUser && msg.reasoningContent && (
+                          <ThinkingProcessCard
+                            reasoning={msg.reasoningContent}
+                            isReasoning={msg.isReasoning || (msg.isStreaming && !msg.content)}
+                            durationSeconds={msg.reasoningDurationSeconds}
+                          />
+                        )}
+
+                        <div
+                          className={`p-3 text-xs sm:text-sm leading-relaxed ${
+                            isUser ? 'bubble-self' : 'bubble-other'
+                          }`}
+                        >
+                          {msg.content ? (
+                            isUser ? (
+                              <div className="whitespace-pre-wrap select-text">{msg.content}</div>
                             ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                            <span>{copiedMsgId === msg.id ? '已复制' : '复制'}</span>
-                          </button>
-                          <span>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
+                              <MarkdownPreview content={msg.content} className="text-xs sm:text-sm select-text" />
+                            )
+                          ) : msg.isStreaming ? (
+                            msg.isReasoning ? (
+                              <div className="text-zinc-400 italic text-xs flex items-center space-x-1.5 py-0.5">
+                                <Sparkles className="w-3 h-3 text-amber-500 animate-spin" />
+                                <span>正在深度思考并组织回复...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center space-x-1.5 text-zinc-400 py-1">
+                                <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce"></span>
+                                <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]"></span>
+                                <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]"></span>
+                              </div>
+                            )
+                          ) : msg.error ? (
+                            <div className="space-y-2 text-amber-800 dark:text-amber-200">
+                              <div className="flex items-start space-x-2">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div className="leading-relaxed">
+                                  <p className="font-semibold">{formatFriendlyAIError(msg.error)}</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  sound.playTap();
+                                  setSubTab('providers');
+                                }}
+                                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-medium text-[11px] flex items-center space-x-1 shadow-xs"
+                              >
+                                <Sliders className="w-3 h-3" />
+                                <span>前往【模型配置】更新密钥或切换端点</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-400 italic">空消息</span>
+                          )}
                         </div>
-                      )}
+
+                        {/* Message Actions */}
+                        {!isUser && msg.content && (!msg.isStreaming || !isStreaming) && (
+                          <div className="flex items-center space-x-2 px-1 text-[10px] text-zinc-400">
+                            <button
+                              onClick={() => copyWithFeedback(msg.content, msg.id)}
+                              className="hover:text-zinc-700 dark:hover:text-zinc-200 flex items-center space-x-1"
+                            >
+                              {copiedMsgId === msg.id ? (
+                                <Check className="w-3 h-3 text-[#07C160]" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                              <span>{copiedMsgId === msg.id ? '已复制' : '复制'}</span>
+                            </button>
+                            <span>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
               <div ref={chatBottomRef} />
             </div>
 
@@ -1057,57 +1161,61 @@ export const AITab: React.FC<AITabProps> = ({
               )}
             </div>
 
-            {/* Lightbox Modal */}
-            {selectedImgLightbox && (
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                <div className="w-full max-w-lg bg-zinc-900 rounded-3xl overflow-hidden p-4 space-y-3 animate-scale-in">
-                  <div className="flex items-center justify-between text-white text-xs">
-                    <span className="font-semibold">大图预览</span>
+            {/* Lightbox BottomSheet */}
+            <BottomSheet
+              isOpen={!!selectedImgLightbox}
+              onClose={() => setSelectedImgLightbox(null)}
+              title="大图预览"
+              subtitle={selectedImgLightbox?.prompt ? (selectedImgLightbox.prompt.slice(0, 32) + '...') : ''}
+              maxHeight="max-h-[92dvh]"
+              footer={
+                selectedImgLightbox && (
+                  <div className="flex items-center justify-between">
                     <button
-                      onClick={() => setSelectedImgLightbox(null)}
-                      className="p-1 text-zinc-400 hover:text-white"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="w-full max-h-[60vh] flex items-center justify-center overflow-hidden rounded-2xl bg-black">
-                    <img
-                      src={selectedImgLightbox.imageUrl}
-                      alt={selectedImgLightbox.prompt}
-                      className="max-h-[60vh] object-contain"
-                    />
-                  </div>
-
-                  <p className="text-xs text-zinc-300 leading-relaxed max-h-20 overflow-y-auto">
-                    {selectedImgLightbox.prompt}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <button
+                      type="button"
                       onClick={() => {
                         setImagePrompt(selectedImgLightbox.prompt);
                         setSelectedImgLightbox(null);
                         sound.playTap();
+                        haptics.impactLight();
                       }}
-                      className="text-xs text-[#FF6B8B] hover:underline font-semibold"
+                      className="text-xs text-[#FF6B8B] hover:underline font-semibold flex items-center space-x-1"
                     >
-                      复用此提示词
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>复用此提示词</span>
                     </button>
 
                     <a
                       href={selectedImgLightbox.imageUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-4 py-1.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition flex items-center space-x-1"
+                      className="px-4 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-xs font-bold hover:opacity-90 transition flex items-center space-x-1 shadow-sm"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>查看/下载原图</span>
                     </a>
                   </div>
+                )
+              }
+            >
+              {selectedImgLightbox && (
+                <div className="space-y-3 pb-2">
+                  <div className="w-full flex items-center justify-center overflow-hidden rounded-2xl bg-black/90 p-1">
+                    <img
+                      src={selectedImgLightbox.imageUrl}
+                      alt={selectedImgLightbox.prompt}
+                      className="max-h-[50dvh] w-full object-contain rounded-xl"
+                    />
+                  </div>
+                  <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-white/5">
+                    <div className="text-[10px] text-zinc-400 font-semibold mb-1">生图提示词 (Prompt)</div>
+                    <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed select-text">
+                      {selectedImgLightbox.prompt}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </BottomSheet>
           </div>
         )}
 
@@ -1260,124 +1368,97 @@ export const AITab: React.FC<AITabProps> = ({
               ))}
             </div>
 
-            {/* New Skill Modal */}
-            {showNewSkillModal && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                    <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                      创建自定义 Skill 技能插件
-                    </h4>
-                    <button onClick={() => setShowNewSkillModal(false)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full">
-                      <X className="w-5 h-5" />
-                    </button>
+            {/* New Skill BottomSheet */}
+            <BottomSheet
+              isOpen={showNewSkillModal}
+              onClose={() => setShowNewSkillModal(false)}
+              title="创建自定义 Skill 技能插件"
+            >
+              <form onSubmit={handleCreateSkill} className="space-y-2.5 pb-2">
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="col-span-1">
+                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">图标</label>
+                    <input
+                      type="text"
+                      required
+                      value={newSkillIcon}
+                      onChange={e => setNewSkillIcon(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 text-center text-sm rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                    />
                   </div>
-
-                  <form onSubmit={handleCreateSkill} className="space-y-2.5">
-                    <div className="grid grid-cols-4 gap-2">
-                      <div className="col-span-1">
-                        <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">图标</label>
-                        <input
-                          type="text"
-                          required
-                          value={newSkillIcon}
-                          onChange={e => setNewSkillIcon(e.target.value)}
-                          className="w-full mt-1 px-3 py-2 text-center text-sm rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">技能名称 *</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="例如: 财务分析顾问"
-                          value={newSkillName}
-                          onChange={e => setNewSkillName(e.target.value)}
-                          className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">简短说明</label>
-                      <input
-                        type="text"
-                        placeholder="描述该技能的使用场景..."
-                        value={newSkillDesc}
-                        onChange={e => setNewSkillDesc(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">系统提示词 (System Prompt) *</label>
-                      <textarea
-                        rows={4}
-                        required
-                        placeholder="你是一位经验丰富的专业人士，请遵循以下准则回应..."
-                        value={newSkillPrompt}
-                        onChange={e => setNewSkillPrompt(e.target.value)}
-                        className="w-full mt-1 p-2.5 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 leading-relaxed resize-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">标签分类 (逗号分隔)</label>
-                      <input
-                        type="text"
-                        placeholder="效率, 商业, 助手"
-                        value={newSkillTags}
-                        onChange={e => setNewSkillTags(e.target.value)}
-                        className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                      />
-                    </div>
-
-                    <div className="pt-2 flex justify-end space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowNewSkillModal(false)}
-                        className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
-                      >
-                        创建技能
-                      </button>
-                    </div>
-                  </form>
+                  <div className="col-span-3">
+                    <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">技能名称 *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="例如: 财务分析顾问"
+                      value={newSkillName}
+                      onChange={e => setNewSkillName(e.target.value)}
+                      className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {/* GitHub Market Explorer Modal */}
-            {showGitHubMarketModal && (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3 max-h-[85vh] flex flex-col">
-                  {/* Modal Header */}
-                  <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 flex items-center justify-center shadow-xs">
-                        <GithubIcon className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                          GitHub 真实开源技能集市
-                        </h4>
-                        <p className="text-[10px] text-zinc-400">
-                          收录 f/awesome-chatgpt-prompts、Fabric 等权威高星技能
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowGitHubMarketModal(false)}
-                      className="p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">简短说明</label>
+                  <input
+                    type="text"
+                    placeholder="描述该技能的使用场景..."
+                    value={newSkillDesc}
+                    onChange={e => setNewSkillDesc(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">系统提示词 (System Prompt) *</label>
+                  <textarea
+                    rows={4}
+                    required
+                    placeholder="你是一位经验丰富的专业人士，请遵循以下准则回应..."
+                    value={newSkillPrompt}
+                    onChange={e => setNewSkillPrompt(e.target.value)}
+                    className="w-full mt-1 p-2.5 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 leading-relaxed resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">标签分类 (逗号分隔)</label>
+                  <input
+                    type="text"
+                    placeholder="效率, 商业, 助手"
+                    value={newSkillTags}
+                    onChange={e => setNewSkillTags(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewSkillModal(false)}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+                  >
+                    创建技能
+                  </button>
+                </div>
+              </form>
+            </BottomSheet>
+
+            {/* GitHub Market Explorer BottomSheet */}
+            <BottomSheet
+              isOpen={showGitHubMarketModal}
+              onClose={() => setShowGitHubMarketModal(false)}
+              title="GitHub 真实开源技能集市"
+              subtitle="收录 f/awesome-chatgpt-prompts、Fabric 等权威高星技能"
+            >
+              <div className="space-y-3 pb-2">
 
                   {/* URL Live Fetcher Box */}
                   <form
@@ -1498,8 +1579,7 @@ export const AITab: React.FC<AITabProps> = ({
                     })}
                   </div>
                 </div>
-              </div>
-            )}
+            </BottomSheet>
           </div>
         )}
 

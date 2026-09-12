@@ -4,7 +4,7 @@
   "description": "微信极简苹果质感 · 本地优先离线全能个人助理",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#EDEDED",
+  "background_color": "#F8F9FA",
   "theme_color": "#07C160",
   "orientation": "portrait",
   "icons": [

@@ -15,11 +15,14 @@ import {
   parseOtpAuthUri,
   generateStrongPassword,
   calculatePasswordStrength,
+  encryptData,
+  decryptData,
 } from '../../utils/crypto';
 import {
   parseBatchHotmailAccounts,
   exportHotmailAccountsToText,
   refreshMicrosoftToken,
+  ensureValidAccessToken,
   fetchInboxMessages,
   sendMicrosoftEmail,
 } from '../../utils/microsoft';
@@ -55,6 +58,9 @@ import {
 } from 'lucide-react';
 import { QRScannerModal } from '../modals/QRScannerModal';
 import { parseTwoFactorQR, ParsedTwoFactor } from '../../utils/qr';
+import { BottomSheet } from '../common/BottomSheet';
+import { SwipeableItem } from '../common/SwipeableItem';
+import { haptics } from '../../utils/haptics';
 
 interface VaultTabProps {
   passwords: PasswordItem[];
@@ -96,6 +102,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
   const copyWithFeedback = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
+    haptics.selection();
     sound.playTap();
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -108,6 +115,8 @@ export const VaultTab: React.FC<VaultTabProps> = ({
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [editingPassword, setEditingPassword] = useState<PasswordItem | null>(null);
+  const [selectedPasswordForDetail, setSelectedPasswordForDetail] = useState<PasswordItem | null>(null);
+  const [pwCategoryFilter, setPwCategoryFilter] = useState<string>('all');
 
   // Form
   const [pwTitle, setPwTitle] = useState('');
@@ -125,6 +134,42 @@ export const VaultTab: React.FC<VaultTabProps> = ({
   const [genNumbers, setGenNumbers] = useState(true);
   const [genSymbols, setGenSymbols] = useState(true);
   const [generatedPw, setGeneratedPw] = useState('');
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'social':
+        return <Globe className="w-4 h-4 text-blue-500" />;
+      case 'email':
+        return <Mail className="w-4 h-4 text-emerald-500" />;
+      case 'finance':
+        return <ShieldCheck className="w-4 h-4 text-amber-500" />;
+      case 'work':
+        return <FileText className="w-4 h-4 text-purple-500" />;
+      case 'game':
+        return <Sparkles className="w-4 h-4 text-pink-500" />;
+      case 'other':
+      default:
+        return <KeyRound className="w-4 h-4 text-zinc-500" />;
+    }
+  };
+
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case 'social':
+        return 'bg-blue-50 dark:bg-blue-950/40 text-blue-500';
+      case 'email':
+        return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500';
+      case 'finance':
+        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-500';
+      case 'work':
+        return 'bg-purple-50 dark:bg-purple-950/40 text-purple-500';
+      case 'game':
+        return 'bg-pink-50 dark:bg-pink-950/40 text-pink-500';
+      case 'other':
+      default:
+        return 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500';
+    }
+  };
 
   const toggleRevealPassword = (id: string) => {
     sound.playTap();
@@ -155,11 +200,168 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     sound.playTap();
   };
 
+  // -------------------------------------------------------------
+  // Master Password & AES-GCM Encryption State
+  // -------------------------------------------------------------
+  const [hasMasterPassword, setHasMasterPassword] = useState<boolean>(() => db.hasMasterPassword());
+  const [isVaultUnlocked, setIsVaultUnlocked] = useState<boolean>(() => !db.hasMasterPassword());
+  const [masterKey, setMasterKey] = useState<string>('');
+  const [unlockInput, setUnlockInput] = useState<string>('');
+  const [unlockError, setUnlockError] = useState<string>('');
+  const [showUnlockPw, setShowUnlockPw] = useState<boolean>(false);
+  const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
+
+  // Set / Manage Master Password Modal
+  const [showSetMasterModal, setShowSetMasterModal] = useState<boolean>(false);
+  const [newMasterPw, setNewMasterPw] = useState<string>('');
+  const [confirmMasterPw, setConfirmMasterPw] = useState<string>('');
+  const [setMasterError, setSetMasterError] = useState<string>('');
+  const [isSettingMaster, setIsSettingMaster] = useState<boolean>(false);
+
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState<boolean>(false);
+
+  // Zero-knowledge security: clear in-memory plaintext passwords on unmount when master password is active
+  useEffect(() => {
+    return () => {
+      if (db.hasMasterPassword()) {
+        onUpdatePasswords([]);
+      }
+    };
+  }, []);
+
+  const persistPasswords = async (updated: PasswordItem[]) => {
+    onUpdatePasswords(updated);
+    if (hasMasterPassword && masterKey) {
+      try {
+        const ciphertext = await encryptData(JSON.stringify(updated), masterKey);
+        db.savePasswordsCiphertext(ciphertext);
+        db.savePasswords([]); // Clear plaintext from disk
+      } catch (err) {
+        console.error('Failed to encrypt passwords to disk:', err);
+      }
+    } else {
+      db.savePasswords(updated);
+    }
+  };
+
+  const handleUnlockVault = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unlockInput.trim()) return;
+    setIsUnlocking(true);
+    setUnlockError('');
+
+    try {
+      const verifier = db.getVaultVerifier();
+      if (!verifier) {
+        setIsVaultUnlocked(true);
+        setIsUnlocking(false);
+        return;
+      }
+
+      const check = await decryptData(verifier, unlockInput.trim());
+      if (check !== 'MAOBU_VAULT_OK') {
+        throw new Error('主密码错误');
+      }
+
+      setMasterKey(unlockInput.trim());
+      setIsVaultUnlocked(true);
+      sound.playSuccess();
+
+      const ciphertext = db.getPasswordsCiphertext();
+      if (ciphertext) {
+        const decryptedJson = await decryptData(ciphertext, unlockInput.trim());
+        const list = JSON.parse(decryptedJson);
+        if (Array.isArray(list)) {
+          onUpdatePasswords(list);
+        }
+      }
+      setUnlockInput('');
+    } catch {
+      sound.playTap();
+      setUnlockError('主密码错误，解密失败，请重新输入');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleLockVault = () => {
+    sound.playTap();
+    setMasterKey('');
+    setIsVaultUnlocked(false);
+    setUnlockInput('');
+    setUnlockError('');
+    onUpdatePasswords([]);
+  };
+
+  const handleSaveMasterPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetMasterError('');
+
+    if (newMasterPw.length < 6) {
+      setSetMasterError('主密码长度不能少于 6 位');
+      return;
+    }
+    if (newMasterPw !== confirmMasterPw) {
+      setSetMasterError('两次输入的密码不一致');
+      return;
+    }
+
+    setIsSettingMaster(true);
+    try {
+      const verifier = await encryptData('MAOBU_VAULT_OK', newMasterPw);
+      db.saveVaultVerifier(verifier);
+
+      const ciphertext = await encryptData(JSON.stringify(passwords), newMasterPw);
+      db.savePasswordsCiphertext(ciphertext);
+      db.savePasswords([]);
+
+      setMasterKey(newMasterPw);
+      setHasMasterPassword(true);
+      setIsVaultUnlocked(true);
+      setShowSetMasterModal(false);
+      setNewMasterPw('');
+      setConfirmMasterPw('');
+      sound.playSuccess();
+      alert('主密码设置成功！密码箱已启用 AES-GCM 256 位军事级加密落盘保护。');
+    } catch (err: any) {
+      setSetMasterError(`设置失败: ${err.message}`);
+    } finally {
+      setIsSettingMaster(false);
+    }
+  };
+
+  const handleRemoveMasterPassword = async () => {
+    if (!confirm('确定要移除主密码吗？移除后密码凭据将以本地未加密形式保存。')) return;
+    sound.playTap();
+    db.clearVaultVerifier();
+    db.clearPasswordsCiphertext();
+    db.savePasswords(passwords);
+    setHasMasterPassword(false);
+    setMasterKey('');
+    setIsVaultUnlocked(true);
+    setShowSetMasterModal(false);
+    alert('已移除主密码，已切换为常规模式。');
+  };
+
+  const handleResetVault = () => {
+    sound.playTap();
+    db.clearVaultVerifier();
+    db.clearPasswordsCiphertext();
+    db.savePasswords([]);
+    onUpdatePasswords([]);
+    setHasMasterPassword(false);
+    setIsVaultUnlocked(true);
+    setMasterKey('');
+    setShowResetConfirmModal(false);
+    setUnlockInput('');
+    setUnlockError('');
+    alert('密码箱已重置并恢复未加密初始状态。');
+  };
+
   const handleDeletePassword = (id: string) => {
     sound.playTap();
     const updated = passwords.filter(p => p.id !== id);
-    onUpdatePasswords(updated);
-    db.savePasswords(updated);
+    persistPasswords(updated);
   };
 
   const handleSavePassword = (e: React.FormEvent) => {
@@ -201,8 +403,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       };
       updated = [newPw, ...passwords];
     }
-    onUpdatePasswords(updated);
-    db.savePasswords(updated);
+    persistPasswords(updated);
     setShowPasswordModal(false);
   };
 
@@ -349,12 +550,14 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     sound.playTap();
     try {
       const res = await refreshMicrosoftToken(acc);
+      const tokenExpiresAt = Date.now() + Math.max(300, (res.expiresIn - 60)) * 1000;
       const updated = hotmailAccounts.map(a =>
         a.id === acc.id
           ? {
               ...a,
               accessToken: res.accessToken,
               refreshToken: res.refreshToken || a.refreshToken,
+              tokenExpiresAt,
               status: 'valid' as const,
               lastCheckedAt: new Date().toISOString(),
               lastErrorMessage: undefined,
@@ -370,6 +573,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 ...prev,
                 accessToken: res.accessToken,
                 refreshToken: res.refreshToken || prev.refreshToken,
+                tokenExpiresAt,
                 status: 'valid',
                 lastCheckedAt: new Date().toISOString(),
                 lastErrorMessage: undefined,
@@ -415,14 +619,46 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     setEmailFetchError(null);
 
     try {
-      // Ensure valid access token
-      let token = acc.accessToken;
-      if (!token) {
-        const refreshed = await refreshMicrosoftToken(acc);
-        token = refreshed.accessToken;
+      // Ensure valid access token with tokenExpiresAt check
+      const { accessToken: token, account: refreshedAcc, refreshed } = await ensureValidAccessToken(acc);
+      if (refreshed) {
+        const updatedWithRefresh = hotmailAccounts.map(a => (a.id === acc.id ? refreshedAcc : a));
+        onUpdateHotmailAccounts(updatedWithRefresh);
+        db.saveHotmailAccounts(updatedWithRefresh);
+        setViewingAccount(refreshedAcc);
       }
 
-      const msgs = await fetchInboxMessages(token, folder);
+      let msgs: EmailMessage[] = [];
+      try {
+        msgs = await fetchInboxMessages(token, folder);
+      } catch (fetchErr: any) {
+        // If 401 or token expired on server side, retry once after force refreshing
+        if (
+          fetchErr.message?.includes('401') ||
+          fetchErr.message?.includes('Unauthorized') ||
+          fetchErr.message?.toLowerCase().includes('token')
+        ) {
+          const forceRefreshed = await refreshMicrosoftToken(acc);
+          const newExpiresAt = Date.now() + Math.max(300, (forceRefreshed.expiresIn - 60)) * 1000;
+          const retryAccount: HotmailAccount = {
+            ...acc,
+            accessToken: forceRefreshed.accessToken,
+            refreshToken: forceRefreshed.refreshToken || acc.refreshToken,
+            tokenExpiresAt: newExpiresAt,
+            status: 'valid',
+            lastCheckedAt: new Date().toISOString(),
+            lastErrorMessage: undefined,
+          };
+          const updatedWithRetry = hotmailAccounts.map(a => (a.id === acc.id ? retryAccount : a));
+          onUpdateHotmailAccounts(updatedWithRetry);
+          db.saveHotmailAccounts(updatedWithRetry);
+          setViewingAccount(retryAccount);
+          msgs = await fetchInboxMessages(forceRefreshed.accessToken, folder);
+        } else {
+          throw fetchErr;
+        }
+      }
+
       const updated = hotmailAccounts.map(a =>
         a.id === acc.id
           ? {
@@ -471,13 +707,44 @@ export const VaultTab: React.FC<VaultTabProps> = ({
     setIsSendingEmail(true);
     sound.playTap();
     try {
-      let token = sendTargetAcc.accessToken;
-      if (!token) {
-        const refreshed = await refreshMicrosoftToken(sendTargetAcc);
-        token = refreshed.accessToken;
+      const { accessToken: token, account: refreshedAcc, refreshed } = await ensureValidAccessToken(sendTargetAcc);
+      if (refreshed) {
+        const updatedWithRefresh = hotmailAccounts.map(a => (a.id === sendTargetAcc.id ? refreshedAcc : a));
+        onUpdateHotmailAccounts(updatedWithRefresh);
+        db.saveHotmailAccounts(updatedWithRefresh);
+        setSendTargetAcc(refreshedAcc);
       }
 
-      await sendMicrosoftEmail(token, sendToEmail, sendSubject, sendContent);
+      try {
+        await sendMicrosoftEmail(token, sendToEmail, sendSubject, sendContent);
+      } catch (sendErr: any) {
+        // If 401 or token rejected, force refresh token once and retry
+        if (
+          sendErr.message?.includes('401') ||
+          sendErr.message?.includes('Unauthorized') ||
+          sendErr.message?.toLowerCase().includes('token')
+        ) {
+          const forceRefreshed = await refreshMicrosoftToken(sendTargetAcc);
+          const newExpiresAt = Date.now() + Math.max(300, (forceRefreshed.expiresIn - 60)) * 1000;
+          const retryAccount: HotmailAccount = {
+            ...sendTargetAcc,
+            accessToken: forceRefreshed.accessToken,
+            refreshToken: forceRefreshed.refreshToken || sendTargetAcc.refreshToken,
+            tokenExpiresAt: newExpiresAt,
+            status: 'valid',
+            lastCheckedAt: new Date().toISOString(),
+            lastErrorMessage: undefined,
+          };
+          const updatedWithRetry = hotmailAccounts.map(a => (a.id === sendTargetAcc.id ? retryAccount : a));
+          onUpdateHotmailAccounts(updatedWithRetry);
+          db.saveHotmailAccounts(updatedWithRetry);
+          setSendTargetAcc(retryAccount);
+          await sendMicrosoftEmail(forceRefreshed.accessToken, sendToEmail, sendSubject, sendContent);
+        } else {
+          throw sendErr;
+        }
+      }
+
       sound.playSuccess();
       alert('邮件已成功送出！');
       setShowSendModal(false);
@@ -598,22 +865,109 @@ export const VaultTab: React.FC<VaultTabProps> = ({
           accentColor={accentColor}
         />
       ) : (
-        <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 pb-20">
+        <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-3.5 pb-24 max-w-5xl mx-auto w-full">
         {/* ========================================================= */}
         {/* SUBTAB 1: PASSWORDS                                       */}
         {/* ========================================================= */}
         {subTab === 'passwords' && (
-          <div className="space-y-3">
+          hasMasterPassword && !isVaultUnlocked ? (
+            <div className="py-12 max-w-sm mx-auto text-center space-y-4 select-none px-4">
+              <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 mx-auto flex items-center justify-center shadow-inner">
+                <Lock className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  猫步安全密码箱已锁定
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  已启用 AES-GCM 256 位端到端加密保护，请输入主密码解锁：
+                </p>
+              </div>
+
+              <form onSubmit={handleUnlockVault} className="space-y-3">
+                <div className="relative">
+                  <input
+                    type={showUnlockPw ? 'text' : 'password'}
+                    placeholder="输入主密码..."
+                    value={unlockInput}
+                    onChange={e => {
+                      setUnlockInput(e.target.value);
+                      setUnlockError('');
+                    }}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUnlockPw(!showUnlockPw)}
+                    className="absolute right-3 top-3 text-zinc-400 hover:text-zinc-600"
+                  >
+                    {showUnlockPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {unlockError && (
+                  <p className="text-xs text-red-500 font-medium">{unlockError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!unlockInput || isUnlocking}
+                  className="w-full py-2.5 bg-[#07C160] hover:bg-[#06AD56] text-white rounded-2xl text-xs font-bold transition disabled:opacity-50 tactile-press flex items-center justify-center space-x-1.5 shadow-sm"
+                >
+                  {isUnlocking ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isUnlocking ? '正在解密验证...' : '解锁密码箱'}</span>
+                </button>
+              </form>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirmModal(true)}
+                  className="text-[11px] text-zinc-400 hover:text-red-500 transition"
+                >
+                  忘记主密码？
+                </button>
+              </div>
+            </div>
+          ) : (
+          <div className="space-y-3 pb-24">
+            {/* Bento Security & Summary Grid */}
+            <div className="grid grid-cols-4 gap-1.5 text-center">
+              <div className="bg-white/80 dark:bg-[#181820]/80 rounded-2xl p-2 border border-zinc-200/60 dark:border-white/5 shadow-xs">
+                <div className="text-[10px] text-zinc-400">全部凭据</div>
+                <div className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{passwords.length}</div>
+              </div>
+              <div className="bg-white/80 dark:bg-[#181820]/80 rounded-2xl p-2 border border-zinc-200/60 dark:border-white/5 shadow-xs">
+                <div className="text-[10px] text-amber-500 font-medium">安全检测</div>
+                <div className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                  {passwords.filter(p => calculatePasswordStrength(p.password).score < 40).length === 0 ? '全部达标' : `${passwords.filter(p => calculatePasswordStrength(p.password).score < 40).length} 项需强化`}
+                </div>
+              </div>
+              <div className="bg-white/80 dark:bg-[#181820]/80 rounded-2xl p-2 border border-zinc-200/60 dark:border-white/5 shadow-xs">
+                <div className="text-[10px] text-blue-500 font-medium">2FA 口令</div>
+                <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{tokens.length}</div>
+              </div>
+              <div className="bg-white/80 dark:bg-[#181820]/80 rounded-2xl p-2 border border-zinc-200/60 dark:border-white/5 shadow-xs">
+                <div className="text-[10px] text-emerald-500 font-medium">微软邮箱</div>
+                <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{hotmailAccounts.length}</div>
+              </div>
+            </div>
+
             {/* Top Toolbar */}
             <div className="flex items-center space-x-2">
-              <div className="flex-1 flex items-center px-3 py-1.5 bg-white dark:bg-zinc-800 rounded-xl shadow-xs text-xs">
+              <div className="flex-1 flex items-center px-3 py-2 bg-white/90 dark:bg-[#181820]/90 rounded-2xl shadow-xs border border-zinc-200/60 dark:border-white/5 text-xs">
                 <Search className="w-3.5 h-3.5 text-zinc-400 mr-2 shrink-0" />
                 <input
                   type="text"
                   placeholder="搜索账号、网站、标题..."
                   value={passwordSearch}
                   onChange={e => setPasswordSearch(e.target.value)}
-                  className="bg-transparent border-none outline-none w-full text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
+                  className="bg-transparent border-none outline-none w-full text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 text-xs"
                 />
               </div>
 
@@ -623,7 +977,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                   handleRunGenerator();
                   setShowGenModal(true);
                 }}
-                className="px-2.5 py-1.5 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold shadow-xs hover:bg-zinc-50 flex items-center space-x-1"
+                className="px-2.5 py-2 bg-white/90 dark:bg-[#181820]/90 text-zinc-700 dark:text-zinc-300 rounded-2xl text-xs font-semibold shadow-xs border border-zinc-200/60 dark:border-white/5 hover:bg-zinc-50 flex items-center space-x-1 tactile-press"
                 title="强密码生成器"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
@@ -632,17 +986,82 @@ export const VaultTab: React.FC<VaultTabProps> = ({
 
               <button
                 onClick={handleOpenAddPassword}
-                className="px-3 py-1.5 bg-[#07C160] text-white rounded-xl text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition flex items-center space-x-1"
+                className="px-3 py-2 bg-[#07C160] text-white rounded-2xl text-xs font-semibold shadow-sm hover:opacity-90 active:scale-95 transition flex items-center space-x-1 tactile-press shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>新增</span>
               </button>
+
+              {hasMasterPassword ? (
+                <>
+                  <button
+                    onClick={handleLockVault}
+                    className="p-2 bg-white/90 dark:bg-[#181820]/90 text-zinc-600 dark:text-zinc-300 rounded-2xl text-xs font-semibold shadow-xs border border-zinc-200/60 dark:border-white/5 flex items-center justify-center tactile-press"
+                    title="重新锁定密码箱"
+                  >
+                    <Lock className="w-4 h-4 text-zinc-500" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      sound.playTap();
+                      setShowSetMasterModal(true);
+                    }}
+                    className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-2xl text-xs font-semibold shadow-xs flex items-center justify-center tactile-press"
+                    title="管理主密码"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    sound.playTap();
+                    setShowSetMasterModal(true);
+                  }}
+                  className="px-2.5 py-2 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-2xl text-xs font-semibold shadow-xs hover:bg-amber-100/50 flex items-center space-x-1 tactile-press shrink-0"
+                  title="设置主密码加密存储"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                  <span>设主密码</span>
+                </button>
+              )}
             </div>
 
-            {/* Passwords List */}
+            {/* Category Filter Chips */}
+            <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar pb-0.5 text-xs">
+              {[
+                { id: 'all', label: '全部' },
+                { id: 'social', label: '社交' },
+                { id: 'email', label: '邮箱' },
+                { id: 'finance', label: '金融' },
+                { id: 'work', label: '工作' },
+                { id: 'game', label: '游戏' },
+                { id: 'other', label: '其他' },
+              ].map(cat => {
+                const isActive = pwCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      sound.playTap();
+                      setPwCategoryFilter(cat.id);
+                    }}
+                    className={`px-3 py-1 rounded-full whitespace-nowrap transition-all text-xs font-medium tactile-press ${
+                      isActive
+                        ? 'bg-[var(--theme-accent,#07C160)] text-white font-semibold shadow-xs'
+                        : 'bg-white/80 dark:bg-[#181820]/80 text-zinc-600 dark:text-zinc-400 border border-zinc-200/50 dark:border-white/5'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Apple Passwords Inset Grouped List */}
             {passwords.length === 0 ? (
-              <div className="py-14 text-center space-y-2 select-none">
-                <div className="w-14 h-14 rounded-full bg-zinc-200 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
+              <div className="py-14 text-center space-y-2 select-none bg-white/60 dark:bg-[#181820]/60 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                <div className="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800 mx-auto flex items-center justify-center text-2xl">
                   🔑
                 </div>
                 <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">密码保险箱暂无密码</p>
@@ -653,92 +1072,114 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                   + 添加第一个密码凭据
                 </button>
               </div>
-            ) : (
-              passwords
-                .filter(p => {
-                  const q = passwordSearch.toLowerCase();
-                  return (
-                    !q ||
-                    p.title.toLowerCase().includes(q) ||
-                    p.username.toLowerCase().includes(q) ||
-                    (p.website && p.website.toLowerCase().includes(q))
-                  );
-                })
-                .map(item => {
-                  const isRevealed = !!revealedPasswords[item.id];
-                  return (
-                      <div
+            ) : (() => {
+              const q = passwordSearch.toLowerCase();
+              const filteredList = passwords.filter(p => {
+                const matchesCat = pwCategoryFilter === 'all' || p.category === pwCategoryFilter;
+                const matchesQuery = !q || p.title.toLowerCase().includes(q) || p.username.toLowerCase().includes(q) || (p.website && p.website.toLowerCase().includes(q));
+                return matchesCat && matchesQuery;
+              });
+
+              if (filteredList.length === 0) {
+                return (
+                  <div className="py-12 text-center text-xs text-zinc-400 bg-white/60 dark:bg-[#181820]/60 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                    未找到匹配该分类或搜索的密码凭据
+                  </div>
+                );
+              }
+
+              return (
+                <div className="rounded-2xl bg-white dark:bg-[#181820] divide-y divide-zinc-100 dark:divide-zinc-800/80 border border-zinc-200/70 dark:border-white/5 shadow-ios-sm overflow-hidden">
+                  {filteredList.map(item => {
+                    const strength = calculatePasswordStrength(item.password);
+                    return (
+                      <SwipeableItem
                         key={item.id}
-                        className="cat-card p-4 transition-all duration-200 space-y-2.5 relative group"
+                        leftAction={{
+                          label: '复制密码',
+                          icon: <Copy className="w-4 h-4 text-white" />,
+                          colorClass: 'bg-[#07C160] text-white',
+                          onTrigger: () => copyWithFeedback(item.password, item.id),
+                        }}
+                        rightActions={[
+                          {
+                            label: '编辑',
+                            icon: <Edit3 className="w-3.5 h-3.5 text-white" />,
+                            colorClass: 'bg-blue-500 text-white',
+                            onClick: () => handleOpenEditPassword(item),
+                          },
+                          {
+                            label: '删除',
+                            icon: <Trash2 className="w-3.5 h-3.5 text-white" />,
+                            colorClass: 'bg-red-500 text-white',
+                            onClick: () => handleDeletePassword(item.id),
+                          },
+                        ]}
+                        className="bg-transparent"
                       >
-                        {/* Title Row */}
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
-                              <span>{item.title}</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-500 font-medium">
-                                {item.category}
-                              </span>
-                            </h4>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                              账号：{item.username || '(未填写用户名)'}
-                            </p>
+                        <div
+                          onClick={() => {
+                            sound.playTap();
+                            setSelectedPasswordForDetail(item);
+                          }}
+                          className="px-3.5 py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40 active:bg-zinc-100/70 dark:active:bg-zinc-800/60 transition-colors"
+                        >
+                          {/* Left Avatar & Details */}
+                          <div className="flex items-center space-x-3 min-w-0 flex-1 pr-2">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${getCategoryBadgeClass(item.category)}`}>
+                              {getCategoryIcon(item.category)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center space-x-1.5">
+                                <h4 className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                                  {item.title}
+                                </h4>
+                                {strength.score < 40 && (
+                                  <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-medium">
+                                    需强化
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+                                {item.username || '(无用户名)'}
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="flex items-center space-x-1">
+                          {/* Right Quick Action & Chevron */}
+                          <div className="flex items-center space-x-2 shrink-0">
                             <button
-                              onClick={() => handleOpenEditPassword(item)}
-                              className="p-1.5 text-zinc-400 hover:text-blue-500 rounded-lg transition-colors tactile-press"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeletePassword(item.id)}
-                              className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg transition-colors tactile-press"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Password Field Bar */}
-                        <div className="flex items-center justify-between px-3.5 py-2.5 bg-zinc-50 dark:bg-[#121217] rounded-xl font-mono text-xs border border-zinc-200/50 dark:border-white/5">
-                          <span className="truncate text-zinc-800 dark:text-zinc-200 tracking-wider">
-                            {isRevealed ? item.password : '••••••••••••••••'}
-                          </span>
-                          <div className="flex items-center space-x-2 shrink-0 ml-2">
-                            <button
-                              onClick={() => toggleRevealPassword(item.id)}
-                              className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 tactile-press"
-                              title={isRevealed ? '隐藏密码' : '显示密码'}
-                            >
-                              {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                              onClick={() => copyWithFeedback(item.password, item.id)}
-                              className="text-zinc-400 hover:text-[#07C160] tactile-press"
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                copyWithFeedback(item.password, item.id);
+                              }}
+                              className="px-2.5 py-1 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-[11px] font-mono hover:bg-zinc-200 dark:hover:bg-zinc-700 tactile-press flex items-center space-x-1"
                               title="复制密码"
                             >
                               {copiedId === item.id ? (
-                                <Check className="w-3.5 h-3.5 text-[#07C160]" />
+                                <>
+                                  <Check className="w-3 h-3 text-[#07C160]" />
+                                  <span className="text-[#07C160] font-bold">已复制</span>
+                                </>
                               ) : (
-                                <Copy className="w-3.5 h-3.5" />
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>复制</span>
+                                </>
                               )}
                             </button>
+                            <ChevronRight className="w-4 h-4 text-zinc-300 dark:text-zinc-600" />
                           </div>
                         </div>
-
-                        {/* Notes / Website */}
-                        {item.website && (
-                          <div className="text-[11px] text-zinc-400 truncate">
-                            网站：<a href={item.website.startsWith('http') ? item.website : `https://${item.website}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">{item.website}</a>
-                          </div>
-                        )}
-                      </div>
-                  );
-                })
-            )}
+                      </SwipeableItem>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
+          )
         )}
 
         {/* ========================================================= */}
@@ -1097,496 +1538,584 @@ export const VaultTab: React.FC<VaultTabProps> = ({
       {/* MODALS SECTION                                            */}
       {/* ========================================================= */}
 
-      {/* 1. Add / Edit Password Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                {editingPassword ? '编辑密码凭证' : '存入新密码'}
-              </h3>
-              <button
-                onClick={() => setShowPasswordModal(false)}
-                className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePassword} className="mt-3 space-y-2.5">
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">标题 / 平台名称 *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="例如：微信、GitHub、Steam..."
-                  value={pwTitle}
-                  onChange={e => setPwTitle(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">用户名 / 账号</label>
-                  <input
-                    type="text"
-                    placeholder="用户名或邮箱"
-                    value={pwUsername}
-                    onChange={e => setPwUsername(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">分类</label>
-                  <select
-                    value={pwCategory}
-                    onChange={e => setPwCategory(e.target.value as any)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                  >
-                    <option value="social">社交应用</option>
-                    <option value="email">电子邮箱</option>
-                    <option value="finance">金融资产</option>
-                    <option value="work">工作办公</option>
-                    <option value="game">游戏娱乐</option>
-                    <option value="other">其他分类</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">密码 *</label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newPw = generateStrongPassword({
-                        length: 16,
-                        useUpper: true,
-                        useLower: true,
-                        useNumbers: true,
-                        useSymbols: true,
-                        avoidAmbiguous: true,
-                      });
-                      setPwPassword(newPw);
-                    }}
-                    className="text-[11px] text-[#07C160] hover:underline"
-                  >
-                    随机生成强密码
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  placeholder="输入或生成密码"
-                  value={pwPassword}
-                  onChange={e => setPwPassword(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 font-mono text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">网站 URL (选填)</label>
-                <input
-                  type="text"
-                  placeholder="https://example.com"
-                  value={pwWebsite}
-                  onChange={e => setPwWebsite(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
-                >
-                  保存凭证
-                </button>
-              </div>
-            </form>
+      {/* 1. Add / Edit Password BottomSheet */}
+      <BottomSheet
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title={editingPassword ? '编辑密码凭证' : '存入新密码'}
+      >
+        <form onSubmit={handleSavePassword} className="space-y-2.5 pb-2">
+          <div>
+            <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">标题 / 平台名称 *</label>
+            <input
+              type="text"
+              required
+              placeholder="例如：微信、GitHub、Steam..."
+              value={pwTitle}
+              onChange={e => setPwTitle(e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+            />
           </div>
-        </div>
-      )}
 
-      {/* 2. Strong Password Generator Modal */}
-      {showGenModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center space-x-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>强密码随机生成器</span>
-              </h3>
-              <button onClick={() => setShowGenModal(false)} className="text-zinc-400 hover:bg-zinc-100 p-1 rounded-full">
-                <X className="w-4 h-4" />
-              </button>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">用户名 / 账号</label>
+              <input
+                type="text"
+                placeholder="用户名或邮箱"
+                value={pwUsername}
+                onChange={e => setPwUsername(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+              />
             </div>
 
-            {/* Generated Password Box */}
-            <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-between font-mono text-sm">
-              <span className="truncate select-all text-zinc-900 dark:text-zinc-100 font-bold">
-                {generatedPw}
-              </span>
-              <button
-                onClick={() => copyWithFeedback(generatedPw, 'gen_pw')}
-                className="p-1.5 text-zinc-500 hover:text-[#07C160]"
-                title="复制"
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">分类</label>
+              <select
+                value={pwCategory}
+                onChange={e => setPwCategory(e.target.value as any)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
               >
-                {copiedId === 'gen_pw' ? <Check className="w-4 h-4 text-[#07C160]" /> : <Copy className="w-4 h-4" />}
+                <option value="social">社交应用</option>
+                <option value="email">电子邮箱</option>
+                <option value="finance">金融资产</option>
+                <option value="work">工作办公</option>
+                <option value="game">游戏娱乐</option>
+                <option value="other">其他分类</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">密码 *</label>
+              <button
+                type="button"
+                onClick={() => {
+                  const newPw = generateStrongPassword({
+                    length: 16,
+                    useUpper: true,
+                    useLower: true,
+                    useNumbers: true,
+                    useSymbols: true,
+                    avoidAmbiguous: true,
+                  });
+                  setPwPassword(newPw);
+                }}
+                className="text-[11px] text-[#07C160] hover:underline"
+              >
+                随机生成强密码
               </button>
             </div>
+            <input
+              type="text"
+              required
+              placeholder="输入或生成密码"
+              value={pwPassword}
+              onChange={e => setPwPassword(e.target.value)}
+              className="w-full mt-1 px-3 py-2 font-mono text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
 
-            {/* Controls */}
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span>密码长度：{genLength}</span>
+          <div>
+            <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">网站 URL (选填)</label>
+            <input
+              type="text"
+              placeholder="https://example.com"
+              value={pwWebsite}
+              onChange={e => setPwWebsite(e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
+
+          <div className="pt-2 flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowPasswordModal(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+            >
+              保存凭证
+            </button>
+          </div>
+        </form>
+      </BottomSheet>
+
+      {/* 2. Strong Password Generator BottomSheet */}
+      <BottomSheet
+        isOpen={showGenModal}
+        onClose={() => setShowGenModal(false)}
+        title="强密码随机生成器"
+      >
+        <div className="space-y-3 pb-2">
+          {/* Generated Password Box */}
+          <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-between font-mono text-sm">
+            <span className="truncate select-all text-zinc-900 dark:text-zinc-100 font-bold">
+              {generatedPw}
+            </span>
+            <button
+              onClick={() => copyWithFeedback(generatedPw, 'gen_pw')}
+              className="p-1.5 text-zinc-500 hover:text-[#07C160]"
+              title="复制"
+            >
+              {copiedId === 'gen_pw' ? <Check className="w-4 h-4 text-[#07C160]" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Controls */}
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span>密码长度：{genLength}</span>
+              <input
+                type="range"
+                min="8"
+                max="32"
+                value={genLength}
+                onChange={e => {
+                  setGenLength(Number(e.target.value));
+                  handleRunGenerator();
+                }}
+                className="w-36"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <label className="flex items-center space-x-1.5 cursor-pointer">
                 <input
-                  type="range"
-                  min="8"
-                  max="32"
-                  value={genLength}
+                  type="checkbox"
+                  checked={genUpper}
                   onChange={e => {
-                    setGenLength(Number(e.target.value));
+                    setGenUpper(e.target.checked);
                     handleRunGenerator();
                   }}
-                  className="w-36"
+                  className="rounded text-[#07C160]"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <label className="flex items-center space-x-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={genUpper}
-                    onChange={e => {
-                      setGenUpper(e.target.checked);
-                      handleRunGenerator();
-                    }}
-                    className="rounded text-[#07C160]"
-                  />
-                  <span>大写字母 (A-Z)</span>
-                </label>
-                <label className="flex items-center space-x-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={genLower}
-                    onChange={e => {
-                      setGenLower(e.target.checked);
-                      handleRunGenerator();
-                    }}
-                    className="rounded text-[#07C160]"
-                  />
-                  <span>小写字母 (a-z)</span>
-                </label>
-                <label className="flex items-center space-x-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={genNumbers}
-                    onChange={e => {
-                      setGenNumbers(e.target.checked);
-                      handleRunGenerator();
-                    }}
-                    className="rounded text-[#07C160]"
-                  />
-                  <span>数字 (0-9)</span>
-                </label>
-                <label className="flex items-center space-x-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={genSymbols}
-                    onChange={e => {
-                      setGenSymbols(e.target.checked);
-                      handleRunGenerator();
-                    }}
-                    className="rounded text-[#07C160]"
-                  />
-                  <span>特殊符号 (!@#)</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-between items-center">
-              <button
-                type="button"
-                onClick={handleRunGenerator}
-                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
-              >
-                🔄 重新生成
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPwPassword(generatedPw);
-                  setShowGenModal(false);
-                  setShowPasswordModal(true);
-                }}
-                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
-              >
-                使用此密码
-              </button>
+                <span>大写字母 (A-Z)</span>
+              </label>
+              <label className="flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={genLower}
+                  onChange={e => {
+                    setGenLower(e.target.checked);
+                    handleRunGenerator();
+                  }}
+                  className="rounded text-[#07C160]"
+                />
+                <span>小写字母 (a-z)</span>
+              </label>
+              <label className="flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={genNumbers}
+                  onChange={e => {
+                    setGenNumbers(e.target.checked);
+                    handleRunGenerator();
+                  }}
+                  className="rounded text-[#07C160]"
+                />
+                <span>数字 (0-9)</span>
+              </label>
+              <label className="flex items-center space-x-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={genSymbols}
+                  onChange={e => {
+                    setGenSymbols(e.target.checked);
+                    handleRunGenerator();
+                  }}
+                  className="rounded text-[#07C160]"
+                />
+                <span>特殊符号 (!@#)</span>
+              </label>
             </div>
           </div>
+
+          <div className="pt-2 flex justify-between items-center">
+            <button
+              type="button"
+              onClick={handleRunGenerator}
+              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+            >
+              🔄 重新生成
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPwPassword(generatedPw);
+                setShowGenModal(false);
+                setShowPasswordModal(true);
+              }}
+              className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+            >
+              使用此密码
+            </button>
+          </div>
         </div>
-      )}
+      </BottomSheet>
 
-      {/* 3. Add 2FA Token Modal */}
-      {show2FAModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                添加 2FA 双重身份令牌
-              </h3>
-              <button onClick={() => setShow2FAModal(false)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full">
-                <X className="w-4 h-4" />
-              </button>
+      {/* 3. Add 2FA Token BottomSheet */}
+      <BottomSheet
+        isOpen={show2FAModal}
+        onClose={() => setShow2FAModal(false)}
+        title="添加 2FA 双重身份令牌"
+      >
+        <div className="space-y-3 pb-2">
+          {/* Quick QR Scanner Trigger Banner */}
+          <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 border border-green-200/80 dark:border-green-800/50 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 bg-[#07C160] text-white rounded-xl shadow-xs shrink-0">
+                <Camera className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                  一键扫码或识别二维码图片
+                </div>
+                <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  支持摄像头实时扫描、本地截图识别与剪贴板
+                </div>
+              </div>
             </div>
 
-            {/* Quick QR Scanner Trigger Banner */}
-            <div className="p-3 bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 border border-green-200/80 dark:border-green-800/50 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-[#07C160] text-white rounded-xl shadow-xs shrink-0">
-                  <Camera className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                    一键扫码或识别二维码图片
-                  </div>
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                    支持摄像头实时扫描、本地截图识别与剪贴板
-                  </div>
-                </div>
-              </div>
+            <button
+              type="button"
+              onClick={() => {
+                sound.playTap();
+                setShowQRScanner(true);
+              }}
+              className="px-3 py-1.5 bg-white dark:bg-zinc-800 hover:bg-zinc-50 text-[#07C160] text-xs font-bold rounded-xl shadow-xs border border-green-200 dark:border-green-800/60 transition shrink-0"
+            >
+              立即扫码
+            </button>
+          </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  sound.playTap();
-                  setShowQRScanner(true);
-                }}
-                className="px-3 py-1.5 bg-white dark:bg-zinc-800 hover:bg-zinc-50 text-[#07C160] text-xs font-bold rounded-xl shadow-xs border border-green-200 dark:border-green-800/60 transition shrink-0"
-              >
-                立即扫码
-              </button>
+          <form onSubmit={handleAdd2FAToken} className="space-y-2.5">
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">或快速粘贴 otpauth:// 链接 / Base32 密钥</label>
+              <input
+                type="text"
+                placeholder="otpauth://totp/GitHub:user?secret=... 或直接粘贴密钥"
+                value={totpUriInput}
+                onChange={e => handleParseUri(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 font-mono"
+              />
             </div>
 
-            <form onSubmit={handleAdd2FAToken} className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">或快速粘贴 otpauth:// 链接 / Base32 密钥</label>
-                <input
-                  type="text"
-                  placeholder="otpauth://totp/GitHub:user?secret=... 或直接粘贴密钥"
-                  value={totpUriInput}
-                  onChange={e => handleParseUri(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">发行平台 (Issuer) *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="如: Google, GitHub"
-                    value={totpIssuer}
-                    onChange={e => setTotpIssuer(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">账号标识</label>
-                  <input
-                    type="text"
-                    placeholder="如: your_name@email"
-                    value={totpAccount}
-                    onChange={e => setTotpAccount(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">Base32 密钥 (Secret) *</label>
+                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">发行平台 (Issuer) *</label>
                 <input
                   type="text"
                   required
-                  placeholder="如: JBSWY3DPEHPK3PXP"
-                  value={totpSecret}
-                  onChange={e => setTotpSecret(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 font-mono text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                  placeholder="如: Google, GitHub"
+                  value={totpIssuer}
+                  onChange={e => setTotpIssuer(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
                 />
               </div>
 
-              <div className="pt-2 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShow2FAModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
-                >
-                  添加动态码
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Hotmail Batch Import Modal */}
-      {showHotmailImportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
               <div>
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  批量导入微软邮箱账号
-                </h3>
-                <p className="text-[11px] text-zinc-400">
-                  每行一条，格式：邮箱----密码----ClientID----RefreshToken
-                </p>
-              </div>
-              <button onClick={() => setShowHotmailImportModal(false)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <textarea
-              rows={6}
-              placeholder="在此粘贴账号列表..."
-              value={hotmailImportText}
-              onChange={e => setHotmailImportText(e.target.value)}
-              className="w-full p-3 font-mono text-xs rounded-2xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none leading-relaxed"
-            />
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-zinc-400">
-                支持以 ----、--- 或制表符分隔各字段
-              </span>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowHotmailImportModal(false)}
-                  className="px-4 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={handleImportHotmailSubmit}
-                  className="px-5 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
-                >
-                  解析并导入
-                </button>
+                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">账号标识</label>
+                <input
+                  type="text"
+                  placeholder="如: your_name@email"
+                  value={totpAccount}
+                  onChange={e => setTotpAccount(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+                />
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* 5. Hotmail Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                导出微软邮箱账号凭据
-              </h3>
-              <button onClick={() => setShowExportModal(false)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full">
-                <X className="w-4 h-4" />
-              </button>
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">Base32 密钥 (Secret) *</label>
+              <input
+                type="text"
+                required
+                placeholder="如: JBSWY3DPEHPK3PXP"
+                value={totpSecret}
+                onChange={e => setTotpSecret(e.target.value)}
+                className="w-full mt-1 px-3 py-2 font-mono text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+              />
             </div>
 
-            <textarea
-              readOnly
-              rows={6}
-              value={exportText}
-              className="w-full p-3 font-mono text-xs rounded-2xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 select-all leading-relaxed"
-            />
-
-            <div className="flex items-center justify-end space-x-2 pt-1">
+            <div className="pt-2 flex justify-end space-x-2">
               <button
                 type="button"
-                onClick={() => copyWithFeedback(exportText, 'export_text')}
-                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+                onClick={() => setShow2FAModal(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
               >
-                {copiedId === 'export_text' ? '已复制！' : '复制全部'}
+                取消
               </button>
+              <button
+                type="submit"
+                className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+              >
+                添加动态码
+              </button>
+            </div>
+          </form>
+        </div>
+      </BottomSheet>
+
+      {/* Password Detail BottomSheet (Apple Passwords Style) */}
+      <BottomSheet
+        isOpen={!!selectedPasswordForDetail}
+        onClose={() => setSelectedPasswordForDetail(null)}
+        title={selectedPasswordForDetail?.title}
+        subtitle={`${selectedPasswordForDetail?.category?.toUpperCase()} · 凭据详情`}
+        headerRight={
+          selectedPasswordForDetail && (
+            <button
+              onClick={() => {
+                handleOpenEditPassword(selectedPasswordForDetail);
+                setSelectedPasswordForDetail(null);
+              }}
+              className="text-xs font-semibold text-blue-500 hover:text-blue-600 px-2 py-1"
+            >
+              编辑
+            </button>
+          )
+        }
+      >
+        {selectedPasswordForDetail && (
+          <div className="space-y-3 pb-3">
+            {/* Header Identity Card */}
+            <div className="flex items-center space-x-3 p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-white/5">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 ${getCategoryBadgeClass(selectedPasswordForDetail.category)}`}>
+                {getCategoryIcon(selectedPasswordForDetail.category)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  {selectedPasswordForDetail.title}
+                </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  {selectedPasswordForDetail.website || selectedPasswordForDetail.category}
+                </p>
+              </div>
+            </div>
+
+            {/* Inset Group: Credentials */}
+            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 divide-y divide-zinc-200/60 dark:divide-zinc-700/60 border border-zinc-100 dark:border-white/5 overflow-hidden text-xs">
+              {/* Username row */}
+              <div className="p-3 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] text-zinc-400 uppercase tracking-wider">用户名 / 账号</div>
+                  <div className="text-xs sm:text-sm font-medium text-zinc-900 dark:text-zinc-100 mt-0.5">
+                    {selectedPasswordForDetail.username || '(未填写)'}
+                  </div>
+                </div>
+                {selectedPasswordForDetail.username && (
+                  <button
+                    onClick={() => copyWithFeedback(selectedPasswordForDetail.username, 'detail_user')}
+                    className="p-1.5 text-zinc-400 hover:text-[#07C160] rounded-lg tactile-press"
+                    title="复制账号"
+                  >
+                    {copiedId === 'detail_user' ? <Check className="w-3.5 h-3.5 text-[#07C160]" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Password row */}
+              <div className="p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] text-zinc-400 uppercase tracking-wider">密码凭据</div>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => toggleRevealPassword(selectedPasswordForDetail.id)}
+                      className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 tactile-press"
+                      title={revealedPasswords[selectedPasswordForDetail.id] ? '隐藏密码' : '显示密码'}
+                    >
+                      {revealedPasswords[selectedPasswordForDetail.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => copyWithFeedback(selectedPasswordForDetail.password, 'detail_pw')}
+                      className="p-1 text-zinc-400 hover:text-[#07C160] tactile-press"
+                      title="复制密码"
+                    >
+                      {copiedId === 'detail_pw' ? <Check className="w-3.5 h-3.5 text-[#07C160]" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="font-mono text-xs sm:text-sm tracking-wider text-zinc-900 dark:text-zinc-100 break-all select-all">
+                  {revealedPasswords[selectedPasswordForDetail.id]
+                    ? selectedPasswordForDetail.password
+                    : '••••••••••••••••'}
+                </div>
+                <div className="flex items-center space-x-2 pt-1 text-[11px] text-zinc-400">
+                  <span>密码强度：</span>
+                  {(() => {
+                    const st = calculatePasswordStrength(selectedPasswordForDetail.password);
+                    const labelMap: Record<string, string> = {
+                      very_strong: '极强',
+                      strong: '高强度',
+                      fair: '中等',
+                      weak: '需强化',
+                    };
+                    return (
+                      <span className="font-semibold" style={{ color: st.color }}>
+                        {labelMap[st.label] || '未知'} ({st.score}分)
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Website row */}
+              {selectedPasswordForDetail.website && (
+                <div className="p-3 flex items-center justify-between">
+                  <div className="min-w-0 pr-2">
+                    <div className="text-[10px] text-zinc-400 uppercase tracking-wider">关联网址</div>
+                    <div className="text-xs text-blue-500 truncate mt-0.5">
+                      {selectedPasswordForDetail.website}
+                    </div>
+                  </div>
+                  <a
+                    href={selectedPasswordForDetail.website.startsWith('http') ? selectedPasswordForDetail.website : `https://${selectedPasswordForDetail.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 text-zinc-400 hover:text-blue-500 rounded-lg tactile-press"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Notes Section */}
+            {selectedPasswordForDetail.notes && (
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-white/5 space-y-1">
+                <div className="text-[10px] text-zinc-400 uppercase tracking-wider">备注信息</div>
+                <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                  {selectedPasswordForDetail.notes}
+                </p>
+              </div>
+            )}
+
+            {/* Danger Zone */}
+            <div className="pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `hotmail_accounts_${new Date().toISOString().split('T')[0]}.txt`;
-                  a.click();
-                  URL.revokeObjectURL(url);
+                  handleDeletePassword(selectedPasswordForDetail.id);
+                  setSelectedPasswordForDetail(null);
                 }}
-                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+                className="w-full py-2.5 rounded-2xl bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 font-semibold text-xs hover:bg-red-100 dark:hover:bg-red-950/50 transition tactile-press"
               >
-                保存为 TXT 文件
+                删除此密码凭据
+              </button>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* 4. Hotmail Batch Import BottomSheet */}
+      <BottomSheet
+        isOpen={showHotmailImportModal}
+        onClose={() => setShowHotmailImportModal(false)}
+        title="批量导入微软邮箱账号"
+        subtitle="每行一条，格式：邮箱----密码----ClientID----RefreshToken"
+      >
+        <div className="space-y-3 pb-2">
+          <textarea
+            rows={6}
+            placeholder="在此粘贴账号列表..."
+            value={hotmailImportText}
+            onChange={e => setHotmailImportText(e.target.value)}
+            className="w-full p-3 font-mono text-xs rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-white/5 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none leading-relaxed"
+          />
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[11px] text-zinc-400">
+              支持以 ----、--- 或制表符分隔
+            </span>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowHotmailImportModal(false)}
+                className="px-4 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleImportHotmailSubmit}
+                className="px-5 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+              >
+                解析并导入
               </button>
             </div>
           </div>
         </div>
-      )}
+      </BottomSheet>
 
-      {/* 6. Hotmail Inbox & Verification Code Viewer Modal */}
-      {viewingAccount && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-xl h-[85vh] bg-white dark:bg-[#1C1C1E] rounded-3xl flex flex-col shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-3.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                    {viewingAccount.email}
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 font-semibold">
-                    收件箱与短信提取
-                  </span>
-                </div>
-                <p className="text-[10px] text-zinc-400 mt-0.5">
-                  自动识别提取邮件内的数字动态验证码
-                </p>
-              </div>
+      {/* 5. Hotmail Export BottomSheet */}
+      <BottomSheet
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="导出微软邮箱账号凭据"
+        subtitle="将已保存的邮箱账户凭据导出为文本"
+      >
+        <div className="space-y-3 pb-2">
+          <textarea
+            readOnly
+            rows={6}
+            value={exportText}
+            className="w-full p-3 font-mono text-xs rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-white/5 text-zinc-900 dark:text-zinc-100 select-all leading-relaxed"
+          />
+          <div className="flex items-center justify-end space-x-2 pt-1">
+            <button
+              type="button"
+              onClick={() => copyWithFeedback(exportText, 'export_text')}
+              className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200"
+            >
+              {copiedId === 'export_text' ? '已复制！' : '复制全部'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `hotmail_accounts_${new Date().toISOString().split('T')[0]}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm"
+            >
+              保存为 TXT 文件
+            </button>
+          </div>
+        </div>
+      </BottomSheet>
 
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleOpenInbox(viewingAccount)}
-                  className="p-1.5 text-zinc-500 hover:text-blue-500 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                  title="刷新邮件"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
-                </button>
-                <button
-                  onClick={() => setViewingAccount(null)}
-                  className="p-1.5 text-zinc-400 hover:bg-zinc-100 rounded-full"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
+      {/* 6. Hotmail Inbox & Verification Code Viewer BottomSheet */}
+      <BottomSheet
+        isOpen={!!viewingAccount}
+        onClose={() => setViewingAccount(null)}
+        title={viewingAccount?.email}
+        subtitle="收件箱与短信提取 · 自动识别动态验证码"
+        maxHeight="max-h-[92dvh]"
+        headerRight={
+          viewingAccount && (
+            <button
+              onClick={() => handleOpenInbox(viewingAccount)}
+              className="p-1.5 text-zinc-500 hover:text-blue-500 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="刷新邮件"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingEmails ? 'animate-spin' : ''}`} />
+            </button>
+          )
+        }
+      >
+        {viewingAccount && (
+          <div className="space-y-3 pb-3">
             {/* Folder Filter Tabs (Inbox vs Junk vs All) */}
-            <div className="px-3.5 py-2 bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0">
+            <div className="p-2 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center space-x-1.5 text-xs">
                 {[
                   { id: 'all', label: '📑 全部', count: (viewingAccount.messages || []).length },
@@ -1612,14 +2141,13 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                   </button>
                 ))}
               </div>
-
-              <span className="text-[10px] text-zinc-400 font-medium">
+              <span className="text-[10px] text-zinc-400 font-medium hidden sm:inline">
                 垃圾箱验证码自适配
               </span>
             </div>
 
             {/* Email List & Extracted Codes */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="space-y-3">
               {emailFetchError && (
                 <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 rounded-2xl text-xs text-red-600 dark:text-red-300">
                   ⚠️ {emailFetchError}
@@ -1629,7 +2157,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               {isLoadingEmails ? (
                 <div className="py-20 text-center space-y-2">
                   <RefreshCw className="w-8 h-8 text-[#07C160] animate-spin mx-auto" />
-                  <p className="text-xs text-zinc-500">正在通过微软 Graph 接口并发检索收件箱与垃圾邮件箱...</p>
+                  <p className="text-xs text-zinc-500">正在并发检索收件箱与垃圾邮件箱...</p>
                 </div>
               ) : viewingAccount.messages && viewingAccount.messages.length > 0 ? (
                 viewingAccount.messages
@@ -1672,7 +2200,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                       {msg.subject}
                     </h5>
 
-                    {/* Extracted Verification Code Banner (Feature Highlight!) */}
+                    {/* Extracted Verification Code Banner */}
                     {msg.extractedCode && (
                       <div
                         onClick={e => e.stopPropagation()}
@@ -1697,12 +2225,10 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                       </div>
                     )}
 
-                    {/* Preview Text */}
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2">
                       {msg.bodyPreview}
                     </p>
 
-                    {/* Click prompt */}
                     <div className="flex items-center justify-between text-[11px] pt-1 text-blue-600 dark:text-blue-400 font-medium border-t border-zinc-100 dark:border-zinc-700/40">
                       <span className="flex items-center space-x-1">
                         <span>点击阅读完整邮件详情</span>
@@ -1724,119 +2250,110 @@ export const VaultTab: React.FC<VaultTabProps> = ({
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
-      {/* 7. Send Email Modal */}
-      {showSendModal && sendTargetAcc && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
-              <div>
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                  通过微软 Hotmail 发送邮件
-                </h3>
-                <p className="text-[11px] text-zinc-400">发件人：{sendTargetAcc.email}</p>
-              </div>
-              <button onClick={() => setShowSendModal(false)} className="p-1 text-zinc-400 hover:bg-zinc-100 rounded-full">
-                <X className="w-4 h-4" />
-              </button>
+      {/* 7. Send Email BottomSheet */}
+      <BottomSheet
+        isOpen={showSendModal && !!sendTargetAcc}
+        onClose={() => setShowSendModal(false)}
+        title="通过微软 Hotmail 发送邮件"
+        subtitle={`发件人：${sendTargetAcc?.email}`}
+      >
+        {sendTargetAcc && (
+          <form onSubmit={handleSendEmail} className="space-y-3 pb-2">
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">收件人邮箱 *</label>
+              <input
+                type="email"
+                required
+                placeholder="recipient@example.com"
+                value={sendToEmail}
+                onChange={e => setSendToEmail(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-white/5 text-zinc-900 dark:text-zinc-100"
+              />
             </div>
 
-            <form onSubmit={handleSendEmail} className="space-y-2.5">
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">收件人邮箱 *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="recipient@example.com"
-                  value={sendToEmail}
-                  onChange={e => setSendToEmail(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">邮件主题 *</label>
+              <input
+                type="text"
+                required
+                placeholder="请输入邮件主题"
+                value={sendSubject}
+                onChange={e => setSendSubject(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-white/5 text-zinc-900 dark:text-zinc-100"
+              />
+            </div>
 
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">邮件主题 *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="请输入邮件主题"
-                  value={sendSubject}
-                  onChange={e => setSendSubject(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">正文内容</label>
+              <textarea
+                rows={4}
+                placeholder="输入邮件文本内容..."
+                value={sendContent}
+                onChange={e => setSendContent(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/50 dark:border-white/5 text-zinc-900 dark:text-zinc-100 resize-none"
+              />
+            </div>
 
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">正文内容</label>
-                <textarea
-                  rows={4}
-                  placeholder="输入邮件文本内容..."
-                  value={sendContent}
-                  onChange={e => setSendContent(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100 resize-none"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowSendModal(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingEmail}
-                  className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm flex items-center space-x-1.5"
-                >
-                  {isSendingEmail ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  <span>{isSendingEmail ? '正在发送...' : '发送邮件'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 8. Single Email Message Detail Viewer Modal */}
-      {selectedEmail && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] bg-white dark:bg-[#1C1C1E] rounded-3xl flex flex-col shadow-ios-modal border border-zinc-200 dark:border-zinc-800 animate-scale-in overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-start justify-between shrink-0 bg-zinc-50/70 dark:bg-zinc-800/40">
-              <div className="min-w-0 pr-3 space-y-1">
-                <div className="flex items-center space-x-2">
-                  {selectedEmail.folder === 'junkemail' ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold shrink-0">
-                      🗑️ 垃圾邮件
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 font-bold shrink-0">
-                      📥 收件箱
-                    </span>
-                  )}
-                  <span className="text-[11px] text-zinc-400">
-                    {selectedEmail.receivedDateTime ? new Date(selectedEmail.receivedDateTime).toLocaleString() : ''}
-                  </span>
-                </div>
-                <h4 className="text-sm sm:text-base font-extrabold text-zinc-900 dark:text-zinc-100 leading-snug break-words">
-                  {selectedEmail.subject}
-                </h4>
-              </div>
-
+            <div className="pt-2 flex justify-end space-x-2">
               <button
-                onClick={() => setSelectedEmail(null)}
-                className="p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full shrink-0"
+                type="button"
+                onClick={() => setShowSendModal(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300"
               >
-                <X className="w-5 h-5" />
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={isSendingEmail}
+                className="px-5 py-2 text-xs font-semibold rounded-xl bg-[#07C160] text-white shadow-sm flex items-center space-x-1.5"
+              >
+                {isSendingEmail ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>{isSendingEmail ? '正在发送...' : '发送邮件'}</span>
               </button>
             </div>
+          </form>
+        )}
+      </BottomSheet>
 
-            {/* Sender / Recipient Information Bar */}
-            <div className="px-4 py-2.5 bg-zinc-100/60 dark:bg-zinc-800/60 border-b border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-xs">
+      {/* 8. Single Email Message Detail Viewer BottomSheet */}
+      <BottomSheet
+        isOpen={!!selectedEmail}
+        onClose={() => setSelectedEmail(null)}
+        title={selectedEmail?.subject || '(无主题)'}
+        subtitle={`发件人：${selectedEmail?.from}`}
+        maxHeight="max-h-[92dvh]"
+        footer={
+          selectedEmail && (
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const fullText = `主题: ${selectedEmail.subject}\n发件人: ${selectedEmail.from}\n时间: ${selectedEmail.receivedDateTime}\n\n${selectedEmail.bodyText || selectedEmail.bodyPreview || ''}`;
+                  copyWithFeedback(fullText, 'full_email_text');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 transition flex items-center space-x-1"
+              >
+                {copiedId === 'full_email_text' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedId === 'full_email_text' ? '已复制' : '复制全文'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedEmail(null)}
+                className="px-5 py-1.5 text-xs font-bold rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm hover:opacity-90 transition"
+              >
+                关闭
+              </button>
+            </div>
+          )
+        }
+      >
+        {selectedEmail && (
+          <div className="space-y-3 pb-2">
+            {/* Sender / Recipient Information */}
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-2xl border border-zinc-200/60 dark:border-zinc-700/60 flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2 truncate">
                 <span className="text-zinc-400 font-medium">发件人:</span>
                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">
@@ -1848,20 +2365,20 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 onClick={() => copyWithFeedback(selectedEmail.from, 'sender_email')}
                 className="text-[10px] text-zinc-500 hover:text-blue-600 shrink-0 ml-2"
               >
-                {copiedId === 'sender_email' ? '已复制' : '复制发件人'}
+                {copiedId === 'sender_email' ? '已复制' : '复制'}
               </button>
             </div>
 
             {/* Extracted Code Highlight if any */}
             {selectedEmail.extractedCode && (
-              <div className="p-3 mx-4 my-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800/50 rounded-2xl flex items-center justify-between shadow-xs shrink-0">
+              <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/40 dark:to-emerald-950/40 border border-green-200 dark:border-green-800/50 rounded-2xl flex items-center justify-between shadow-xs">
                 <div className="flex items-center space-x-2">
                   <div className="p-1.5 rounded-xl bg-green-500 text-white shadow-xs">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <div>
                     <div className="text-[11px] font-semibold text-green-700 dark:text-green-300">
-                      识别到动态安全验证码 / 提取码
+                      动态验证码
                     </div>
                     <div className="font-mono text-lg font-black text-green-600 dark:text-green-400 tracking-wider">
                       {selectedEmail.extractedCode}
@@ -1872,17 +2389,17 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                 <button
                   type="button"
                   onClick={() => copyWithFeedback(selectedEmail.extractedCode!, 'modal_code')}
-                  className="px-3 py-1.5 bg-[#07C160] hover:bg-[#06AD56] text-white text-xs font-bold rounded-xl shadow-sm flex items-center space-x-1 active:scale-95 transition"
+                  className="px-3 py-1.5 bg-[#07C160] hover:bg-[#06AD56] text-white text-xs font-bold rounded-xl shadow-sm flex items-center space-x-1"
                 >
                   {copiedId === 'modal_code' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedId === 'modal_code' ? '已复制' : '一键复制验证码'}</span>
+                  <span>{copiedId === 'modal_code' ? '已复制' : '一键复制'}</span>
                 </button>
               </div>
             )}
 
-            {/* View Mode Toggle (if HTML exists) */}
+            {/* View Mode Toggle */}
             {selectedEmail.bodyHtml && (
-              <div className="px-4 pt-1 flex items-center justify-end space-x-1 shrink-0">
+              <div className="flex items-center justify-end space-x-1">
                 <button
                   type="button"
                   onClick={() => setEmailBodyViewMode('rich')}
@@ -1892,7 +2409,7 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                       : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  网页渲染视图
+                  网页视图
                 </button>
                 <button
                   type="button"
@@ -1903,50 +2420,27 @@ export const VaultTab: React.FC<VaultTabProps> = ({
                       : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  纯文本视图
+                  纯文本
                 </button>
               </div>
             )}
 
             {/* Email Full Content Area */}
-            <div className="flex-1 overflow-y-auto p-4 select-text">
+            <div className="select-text">
               {selectedEmail.bodyHtml && emailBodyViewMode === 'rich' ? (
                 <div
-                  className="prose dark:prose-invert max-w-none text-xs leading-relaxed overflow-x-auto bg-white dark:bg-zinc-900/60 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800"
+                  className="prose dark:prose-invert max-w-none text-xs leading-relaxed overflow-x-auto bg-white dark:bg-zinc-900/60 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-800"
                   dangerouslySetInnerHTML={{ __html: selectedEmail.bodyHtml }}
                 />
               ) : (
-                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap font-sans">
+                <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 text-xs leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap font-sans">
                   {selectedEmail.bodyText || selectedEmail.bodyPreview || '暂无更多正文内容'}
                 </div>
               )}
             </div>
-
-            {/* Modal Footer */}
-            <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-50/50 dark:bg-zinc-800/30">
-              <button
-                type="button"
-                onClick={() => {
-                  const fullText = `主题: ${selectedEmail.subject}\n发件人: ${selectedEmail.from}\n时间: ${selectedEmail.receivedDateTime}\n\n${selectedEmail.bodyText || selectedEmail.bodyPreview || ''}`;
-                  copyWithFeedback(fullText, 'full_email_text');
-                }}
-                className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 transition flex items-center space-x-1"
-              >
-                {copiedId === 'full_email_text' ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedId === 'full_email_text' ? '已复制邮件全文' : '复制邮件全文'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedEmail(null)}
-                className="px-5 py-1.5 text-xs font-bold rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm hover:opacity-90 transition active:scale-95"
-              >
-                关闭
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
       {/* 9. 2FA QR Code Scanner Modal */}
       <QRScannerModal
@@ -1954,6 +2448,108 @@ export const VaultTab: React.FC<VaultTabProps> = ({
         onClose={() => setShowQRScanner(false)}
         onScanSuccess={handleScanQRSuccess}
       />
+
+      {/* 10. Master Password Setup & Management BottomSheet */}
+      <BottomSheet
+        isOpen={showSetMasterModal}
+        onClose={() => setShowSetMasterModal(false)}
+        title={hasMasterPassword ? '管理安全主密码' : '设置密码箱主密码'}
+        subtitle="AES-GCM 256 位军事级加密落盘保护"
+      >
+        <form onSubmit={handleSaveMasterPassword} className="space-y-3 pb-2">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              {hasMasterPassword ? '新主密码' : '设置主密码'} (至少6位)
+            </label>
+            <input
+              type="password"
+              value={newMasterPw}
+              onChange={e => {
+                setNewMasterPw(e.target.value);
+                setSetMasterError('');
+              }}
+              placeholder="输入强主密码..."
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              确认主密码
+            </label>
+            <input
+              type="password"
+              value={confirmMasterPw}
+              onChange={e => {
+                setConfirmMasterPw(e.target.value);
+                setSetMasterError('');
+              }}
+              placeholder="再次输入主密码..."
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-zinc-900 dark:text-zinc-100"
+              required
+            />
+          </div>
+
+          {setMasterError && (
+            <p className="text-xs text-red-500 font-medium">{setMasterError}</p>
+          )}
+
+          <div className="pt-2 flex items-center space-x-2">
+            {hasMasterPassword && (
+              <button
+                type="button"
+                onClick={handleRemoveMasterPassword}
+                className="flex-1 py-2 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-950/40 rounded-xl hover:bg-red-100 transition"
+              >
+                移除主密码
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={isSettingMaster || !newMasterPw || !confirmMasterPw}
+              className="flex-1 py-2 text-xs font-bold text-white bg-[#07C160] hover:bg-[#06AD56] rounded-xl transition disabled:opacity-50 flex items-center justify-center space-x-1 shadow-sm"
+            >
+              {isSettingMaster && <RefreshCw className="w-3 h-3 animate-spin" />}
+              <span>保存并加密</span>
+            </button>
+          </div>
+        </form>
+      </BottomSheet>
+
+      {/* 11. Reset Vault Confirmation BottomSheet */}
+      <BottomSheet
+        isOpen={showResetConfirmModal}
+        onClose={() => setShowResetConfirmModal(false)}
+        title="重置密码箱警告"
+        subtitle="端到端零知识加密保护"
+      >
+        <div className="space-y-4 pb-2 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/40 text-red-500 mx-auto flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed text-left">
+            猫步可爱采用端到端零知识 AES-GCM 256 位加密。若忘记主密码，无法通过任何后端找回。重置密码箱将完全抹除已加密的密码数据以保护隐私。
+          </p>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowResetConfirmModal(false)}
+              className="flex-1 py-2.5 text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-xl hover:bg-zinc-200 transition"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleResetVault}
+              className="flex-1 py-2.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl transition shadow-xs"
+            >
+              确认抹除重置
+            </button>
+          </div>
+        </div>
+      </BottomSheet>
     </div>
   );
 };

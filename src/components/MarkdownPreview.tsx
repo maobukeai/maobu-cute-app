@@ -337,6 +337,63 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       continue;
     }
 
+    // Table (e.g. | col1 | col2 |)
+    if (trimmed.startsWith('|') && trimmed.endsWith('|') && !inCodeBlock) {
+      const nextLine = lines[idx + 1]?.trim() || '';
+      if (/^\|(?:\s*:?-+:?\s*\|)+$/.test(nextLine)) {
+        const headerCells = trimmed
+          .slice(1, -1)
+          .split('|')
+          .map(c => c.trim());
+        const alignMatch = nextLine.slice(1, -1).split('|').map(s => {
+          const t = s.trim();
+          if (t.startsWith(':') && t.endsWith(':')) return 'center';
+          if (t.endsWith(':')) return 'right';
+          return 'left';
+        });
+
+        idx += 1; // skip separator
+        const rows: string[][] = [];
+        while (idx + 1 < lines.length) {
+          const nextRow = lines[idx + 1].trim();
+          if (nextRow.startsWith('|') && nextRow.endsWith('|')) {
+            idx++;
+            rows.push(nextRow.slice(1, -1).split('|').map(c => c.trim()));
+          } else {
+            break;
+          }
+        }
+
+        blocks.push(
+          <div key={`table-${idx}`} className="my-3 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-200 font-semibold">
+                <tr>
+                  {headerCells.map((h, hi) => (
+                    <th key={hi} className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700" style={{ textAlign: (alignMatch[hi] || 'left') as any }}>
+                      {renderInline(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800">
+                {rows.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                    {row.map((cell, ci) => (
+                      <td key={ci} className="px-3 py-2 text-zinc-800 dark:text-zinc-200" style={{ textAlign: (alignMatch[ci] || 'left') as any }}>
+                        {renderInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
     // Standard paragraph
     blocks.push(
       <p
@@ -345,6 +402,48 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       >
         {renderInline(rawLine)}
       </p>
+    );
+  }
+
+  // If stream ended inside a code block or hasn't closed the backticks yet, flush buffer
+  if (inCodeBlock && codeBuffer.length > 0) {
+    const currentCode = codeBuffer.join('\n');
+    const currentIndex = codeBlockIndex++;
+    blocks.push(
+      <div
+        key="code-unclosed"
+        className="my-3 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-900 text-zinc-100 font-mono text-xs shadow-xs"
+      >
+        <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/80 border-b border-zinc-700/60 text-[11px] text-zinc-400">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block" />
+            {codeLang && <span className="ml-2 font-mono uppercase text-zinc-300 font-semibold">{codeLang}</span>}
+          </div>
+          <button
+            type="button"
+            onClick={() => handleCopyCode(currentCode, currentIndex)}
+            className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-zinc-700 text-zinc-300 transition"
+            title="复制代码"
+          >
+            {copiedIndex === currentIndex ? (
+              <>
+                <Check className="w-3 h-3 text-[#07C160]" />
+                <span className="text-[10px] text-[#07C160]">已复制</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" />
+                <span className="text-[10px]">复制</span>
+              </>
+            )}
+          </button>
+        </div>
+        <pre className="p-3 overflow-x-auto leading-relaxed text-[11px] select-text">
+          <code>{currentCode}</code>
+        </pre>
+      </div>
     );
   }
 

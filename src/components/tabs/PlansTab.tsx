@@ -27,14 +27,19 @@ import {
   Sliders,
   ExternalLink,
   Search,
+  LayoutGrid,
 } from 'lucide-react';
 import { generateAIPlan, GeneratedPlanOutput } from '../../utils/ai';
+import { BottomSheet } from '../common/BottomSheet';
+import { SwipeableItem } from '../common/SwipeableItem';
+import { haptics } from '../../utils/haptics';
 
 interface PlansTabProps {
   plans: PlanItem[];
   onUpdatePlans: (newPlans: PlanItem[]) => void;
   accentColor: AccentColor;
   onSwitchToAITab?: () => void;
+  onSwitchToDashboard?: () => void;
 }
 
 export const PlansTab: React.FC<PlansTabProps> = ({
@@ -42,6 +47,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   onUpdatePlans,
   accentColor,
   onSwitchToAITab,
+  onSwitchToDashboard,
 }) => {
   const [filter, setFilter] = useState<'all' | 'today' | 'pending' | 'completed' | string>('all');
   const [showModal, setShowModal] = useState(false);
@@ -353,6 +359,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
     db.savePlans(updated);
 
     if (nextStatus) {
+      haptics.notificationSuccess();
       sound.playSuccess();
       confetti({
         particleCount: 50,
@@ -361,12 +368,14 @@ export const PlansTab: React.FC<PlansTabProps> = ({
         colors: ['#07C160', '#FF6B8B', '#007AFF', '#FFD700'],
       });
     } else {
+      haptics.selection();
       sound.playTap();
     }
   };
 
   // Toggle subtask completion
   const handleToggleSubtask = (planId: string, subtaskId: string) => {
+    haptics.selection();
     sound.playTap();
     const updated = plans.map(p => {
       if (p.id === planId) {
@@ -382,8 +391,8 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   };
 
   // Delete plan
-  const handleDeletePlan = (planId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeletePlan = (planId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     sound.playTap();
     const updated = plans.filter(p => p.id !== planId);
     onUpdatePlans(updated);
@@ -403,8 +412,8 @@ export const PlansTab: React.FC<PlansTabProps> = ({
     setShowModal(true);
   };
 
-  const handleOpenEdit = (plan: PlanItem, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleOpenEdit = (plan: PlanItem, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEditingPlan(plan);
     setFormTitle(plan.title);
     setFormDesc(plan.description || '');
@@ -566,7 +575,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas transition-colors">
       {/* Scrollable Container */}
-      <div className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3 pb-24">
+      <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-3.5 pb-24 max-w-7xl mx-auto w-full">
         {/* Quick Search Bar */}
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -592,21 +601,22 @@ export const PlansTab: React.FC<PlansTabProps> = ({
           {/* Subtle Ambient Light Decoration */}
           <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-[var(--theme-accent)]/10 blur-2xl pointer-events-none"></div>
 
-          <div className="flex items-center justify-between relative z-10">
-            <div className="flex items-center space-x-3 flex-1 min-w-0 pr-2">
+          {/* Top Row: Progress Ring + Title & Percentage + Action Buttons */}
+          <div className="flex items-center justify-between relative z-10 gap-3">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
               {/* Circular Progress Indicator with Cat Paw */}
-              <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
-                <svg className="w-12 h-12 -rotate-90" viewBox="0 0 36 36">
+              <div className="relative w-11 h-11 sm:w-12 sm:h-12 flex items-center justify-center shrink-0">
+                <svg className="w-11 h-11 sm:w-12 sm:h-12 -rotate-90" viewBox="0 0 36 36">
                   <path
                     className="text-zinc-100 dark:text-zinc-800"
-                    strokeWidth="3.5"
+                    strokeWidth="3.2"
                     stroke="currentColor"
                     fill="none"
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                   <path
                     className="transition-all duration-700 ease-out"
-                    strokeWidth="3.5"
+                    strokeWidth="3.2"
                     strokeDasharray={`${progressPercent}, 100`}
                     strokeLinecap="round"
                     stroke="var(--theme-accent, #07C160)"
@@ -614,19 +624,21 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                 </svg>
-                <span className="absolute text-base pointer-events-none select-none">
+                <span className="absolute text-sm sm:text-base pointer-events-none select-none">
                   {progressPercent === 100 ? '👑' : '🐾'}
                 </span>
               </div>
 
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">今日成就进度</span>
-                  <span className="text-[11px] font-extrabold text-[var(--theme-accent,#07C160)] px-2 py-0.5 rounded-full bg-[var(--theme-accent-light,#E8F8F0)] dark:bg-[var(--theme-accent,#07C160)]/15">
-                    {completedCount} / {totalCount} 项 ({progressPercent}%)
+                  <span className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight whitespace-nowrap">
+                    今日成就进度
+                  </span>
+                  <span className="inline-flex items-center text-[10px] font-bold text-[var(--theme-accent,#07C160)] px-2 py-0.5 rounded-full bg-[var(--theme-accent-light,#E8F8F0)] dark:bg-[var(--theme-accent,#07C160)]/15 whitespace-nowrap font-mono">
+                    {completedCount}/{totalCount} ({progressPercent}%)
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-snug break-words">
                   {progressPercent === 100
                     ? '🎉 太棒了！全部计划已圆满达成喵~'
                     : progressPercent >= 50
@@ -636,11 +648,26 @@ export const PlansTab: React.FC<PlansTabProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 shrink-0 relative z-10">
+            <div className="flex items-center space-x-1.5 shrink-0 relative z-10">
+              {/* Bento Dashboard Switcher */}
+              {onSwitchToDashboard && (
+                <button
+                  onClick={() => {
+                    sound.playTap();
+                    onSwitchToDashboard();
+                  }}
+                  className="flex items-center space-x-1 px-2 py-2 sm:px-2.5 sm:py-2 rounded-2xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-medium text-xs tactile-press whitespace-nowrap"
+                  title="查看全景看板 (Bento Grid)"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-pink-500" />
+                  <span className="hidden sm:inline">全景</span>
+                </button>
+              )}
+
               {/* AI Assistant Generator */}
               <button
                 onClick={handleOpenAIPlanner}
-                className="flex items-center space-x-1 px-3 py-2 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:opacity-95 text-white font-bold text-xs shadow-sm tactile-press"
+                className="flex items-center space-x-1 px-2.5 py-2 sm:px-3 sm:py-2 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-400 hover:opacity-95 text-white font-bold text-xs shadow-xs tactile-press whitespace-nowrap"
                 title="AI 智能规划任务"
               >
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
@@ -650,45 +677,37 @@ export const PlansTab: React.FC<PlansTabProps> = ({
               {/* Manual Add Button */}
               <button
                 onClick={handleOpenAdd}
-                className="w-9 h-9 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] hover:brightness-105 text-white shadow-sm flex items-center justify-center tactile-press"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-gradient-to-br from-[#07C160] to-[#06AD56] hover:brightness-105 text-white shadow-xs flex items-center justify-center tactile-press shrink-0"
                 title="手动添加新计划"
               >
-                <Plus className="w-5 h-5 stroke-[2.5]" />
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
               </button>
             </div>
           </div>
 
-          {/* Progress Bar Track */}
-          <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800/80 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[var(--theme-accent,#07C160)] to-rose-400 rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-
-          {/* Micro Stat Badges */}
+          {/* Sleek 4-Metric Inset Bar (Clean Apple Health style) */}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5 text-center">
-            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+            <div className="bg-zinc-50/80 dark:bg-[#1A1A22] rounded-xl py-1.5 px-1 border border-zinc-100 dark:border-white/5">
               <div className="text-[10px] text-zinc-400">总计划</div>
-              <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200">{totalCount}</div>
+              <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 font-mono">{totalCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+            <div className="bg-zinc-50/80 dark:bg-[#1A1A22] rounded-xl py-1.5 px-1 border border-zinc-100 dark:border-white/5">
               <div className="text-[10px] text-amber-500 font-medium">待完成</div>
-              <div className="text-xs font-bold text-amber-600 dark:text-amber-400">{pendingCount}</div>
+              <div className="text-xs font-bold text-amber-600 dark:text-amber-400 font-mono">{pendingCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+            <div className="bg-zinc-50/80 dark:bg-[#1A1A22] rounded-xl py-1.5 px-1 border border-zinc-100 dark:border-white/5">
               <div className="text-[10px] text-rose-500 font-medium">紧急</div>
-              <div className="text-xs font-bold text-rose-600 dark:text-rose-400">{urgentCount}</div>
+              <div className="text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">{urgentCount}</div>
             </div>
-            <div className="bg-zinc-50 dark:bg-[#1F1F27] rounded-xl p-1.5 border border-zinc-100 dark:border-white/5">
+            <div className="bg-zinc-50/80 dark:bg-[#1A1A22] rounded-xl py-1.5 px-1 border border-zinc-100 dark:border-white/5">
               <div className="text-[10px] text-emerald-500 font-medium">今日到期</div>
-              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{todayDueCount}</div>
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">{todayDueCount}</div>
             </div>
           </div>
         </div>
 
-        {/* Filter Pills (iOS Segmented Style, No Scrollbar) */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto py-1 no-scrollbar text-xs">
+        {/* Filter Pills (iOS Segmented Style, Smooth Edge-to-Edge with Padding) */}
+        <div className="-mx-3.5 px-3.5 flex items-center space-x-1.5 overflow-x-auto py-1 no-scrollbar text-xs">
           {[
             { id: 'all', label: `全部 (${totalCount})` },
             { id: 'today', label: `📅 今日 (${todayDueCount})` },
@@ -699,7 +718,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
             { id: 'study', label: '📚 学习' },
             { id: 'health', label: '🏃 健身' },
             { id: 'cat', label: '🐱 萌宠' },
-          ].map(tab => {
+          ].map((tab, idx, arr) => {
             const isActive = filter === tab.id;
             return (
               <button
@@ -708,7 +727,9 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                   sound.playTap();
                   setFilter(tab.id);
                 }}
-                className={`px-3 py-1.5 rounded-full whitespace-nowrap transition-all text-xs tactile-press ${
+                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap transition-all text-xs tactile-press shrink-0 ${
+                  idx === arr.length - 1 ? 'mr-3.5' : ''
+                } ${
                   isActive
                     ? 'bg-[var(--theme-accent,#07C160)] text-white font-semibold shadow-[0_2px_10px_rgba(7,193,96,0.3)]'
                     : 'bg-white/80 dark:bg-[#1A1A22]/80 text-zinc-600 dark:text-zinc-300 border border-zinc-200/50 dark:border-white/5 hover:bg-white dark:hover:bg-zinc-800'
@@ -750,7 +771,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
             {filteredPlans.map(plan => {
               const hasSubtasks = plan.subtasks && plan.subtasks.length > 0;
               const subtasksDoneCount = plan.subtasks?.filter(st => st.isDone).length || 0;
@@ -759,11 +780,35 @@ export const PlansTab: React.FC<PlansTabProps> = ({
               const isCollapsed = collapsedPlanIds.has(plan.id);
 
               return (
-                <div
+                <SwipeableItem
                   key={plan.id}
-                  className={`cat-card p-4 transition-all duration-200 ${
-                    plan.isCompleted
-                      ? 'opacity-65 bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-white/5'
+                  leftAction={{
+                    label: plan.isCompleted ? '标为待办' : '达成完成',
+                    icon: <Check className="w-4 h-4 text-white" />,
+                    colorClass: plan.isCompleted ? 'bg-zinc-600 text-white' : 'bg-[#07C160] text-white',
+                    onTrigger: () => handleToggleComplete(plan.id, plan.isCompleted),
+                  }}
+                  rightActions={[
+                    {
+                      label: '编辑',
+                      icon: <Edit3 className="w-3.5 h-3.5 text-white" />,
+                      colorClass: 'bg-blue-500 text-white',
+                      onClick: () => handleOpenEdit(plan),
+                    },
+                    {
+                      label: '删除',
+                      icon: <Trash2 className="w-3.5 h-3.5 text-white" />,
+                      colorClass: 'bg-red-500 text-white',
+                      onClick: () => handleDeletePlan(plan.id),
+                    },
+                  ]}
+                  className="rounded-2xl h-full"
+                >
+                  <div
+                    onClick={() => handleOpenEdit(plan)}
+                    className={`cat-card p-4 cursor-pointer transition-all duration-200 h-full flex flex-col justify-between ${
+                      plan.isCompleted
+                        ? 'opacity-65 bg-zinc-50/60 dark:bg-zinc-900/40 border-zinc-200/50 dark:border-white/5'
                       : plan.priority === 'urgent'
                       ? 'border-rose-200/80 dark:border-rose-900/50 bg-gradient-to-br from-rose-50/40 via-white to-rose-50/20 dark:from-rose-950/25 dark:via-[#18181E] dark:to-transparent'
                       : plan.priority === 'high'
@@ -771,10 +816,14 @@ export const PlansTab: React.FC<PlansTabProps> = ({
                       : ''
                   }`}
                 >
-                  <div className="flex items-start justify-between space-x-3">
+                  <div className="flex items-start space-x-3">
                     {/* Big Comfortable Checkbox (min 44px tap zone) */}
                     <button
-                      onClick={() => handleToggleComplete(plan.id, plan.isCompleted)}
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleToggleComplete(plan.id, plan.isCompleted);
+                      }}
                       className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-zinc-400 hover:text-[var(--theme-accent,#07C160)] active:scale-95 transition-all shrink-0 tactile-press"
                       title={plan.isCompleted ? '标记为未完成' : '标记为已完成'}
                     >
@@ -787,351 +836,315 @@ export const PlansTab: React.FC<PlansTabProps> = ({
 
                     {/* Content & Metadata */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                        <h3
-                          className={`text-sm font-bold truncate leading-snug ${
-                            plan.isCompleted
-                              ? 'line-through text-zinc-400 dark:text-zinc-500'
-                              : 'text-zinc-900 dark:text-zinc-100'
-                          }`}
-                        >
-                          {plan.title}
-                        </h3>
-                        {getPriorityBadge(plan.priority)}
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
-                          {getCategoryLabel(plan.category)}
-                        </span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <h3
+                            className={`text-sm font-bold break-words leading-snug ${
+                              plan.isCompleted
+                                ? 'line-through text-zinc-400 dark:text-zinc-500'
+                                : 'text-zinc-900 dark:text-zinc-100'
+                            }`}
+                          >
+                            {plan.title}
+                          </h3>
+                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1 pt-0.5">
+                            {getPriorityBadge(plan.priority)}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                              {getCategoryLabel(plan.category)}
+                            </span>
+                            {getDueDateBadge(plan.dueDate, plan.isCompleted)}
+                          </div>
+                        </div>
+
+                        {/* Quick Edit Trigger */}
+                        <div className="flex items-center space-x-1 shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              handleOpenEdit(plan);
+                            }}
+                            className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition tactile-press"
+                            title="编辑计划"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       {plan.description && (
-                        <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed line-clamp-3">
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-2 leading-relaxed break-words line-clamp-3">
                           {plan.description}
                         </p>
                       )}
 
-                      {/* Due Date & Subtask Count Meta */}
-                      <div className="flex items-center space-x-2.5 mt-2 text-[10px] text-zinc-400 flex-wrap gap-y-1">
-                        {getDueDateBadge(plan.dueDate, plan.isCompleted)}
-                        {hasSubtasks && (
-                          <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                            🎯 {subtasksDoneCount}/{subtasksTotal} 步 ({subtasksPercent}%)
-                          </span>
-                        )}
-                      </div>
-
                       {/* Subtasks Accordion Box */}
-                      <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800/80">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 flex items-center space-x-1">
-                            <ListTodo className="w-3.5 h-3.5 text-[#07C160]" />
-                            <span>执行微步骤 ({subtasksDoneCount}/{subtasksTotal})</span>
-                          </span>
-                          {hasSubtasks && (
-                            <button
-                              onClick={() => toggleCollapseSubtasks(plan.id)}
-                              className="flex items-center space-x-0.5 text-[10px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                            >
-                              <span>{isCollapsed ? '展开步骤' : '收起步骤'}</span>
+                      {hasSubtasks && (
+                        <div className="mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
+                          {/* Header toggle */}
+                          <div
+                            onClick={e => {
+                              e.stopPropagation();
+                              toggleCollapseSubtasks(plan.id);
+                            }}
+                            className="flex items-center justify-between py-0.5 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <ListTodo className="w-3.5 h-3.5 text-[var(--theme-accent,#07C160)]" />
+                              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                                执行微步骤 ({subtasksDoneCount}/{subtasksTotal})
+                              </span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                {subtasksPercent}%
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1 text-[11px] text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 transition">
+                              <span>{isCollapsed ? '展开' : '收起'}</span>
                               {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                            </button>
-                          )}
-                        </div>
+                            </div>
+                          </div>
 
-                        {/* Subtasks Progress Bar (when has subtasks) */}
-                        {hasSubtasks && (
-                          <div className="w-full h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-1.5">
+                          {/* Subtasks Progress Bar */}
+                          <div className="w-full h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-1.5 mb-2">
                             <div
-                              className="h-full bg-gradient-to-r from-[#07C160] to-emerald-400 rounded-full transition-all duration-300"
+                              className="h-full bg-gradient-to-r from-[var(--theme-accent,#07C160)] to-emerald-400 rounded-full transition-all duration-300"
                               style={{ width: `${subtasksPercent}%` }}
                             />
                           </div>
-                        )}
 
-                        {/* Subtask items list */}
-                        {!isCollapsed && (
-                          <div className="space-y-1.5 mt-2">
-                            {plan.subtasks.map(st => (
-                              <div
-                                key={st.id}
-                                className="group flex items-center justify-between p-2 rounded-xl bg-zinc-50/90 dark:bg-[#1E1E26] hover:bg-zinc-100/90 dark:hover:bg-[#252530] border border-zinc-200/40 dark:border-white/5 transition"
-                              >
+                          {/* Subtask items list (Clean modern checklist rows, NO truncation!) */}
+                          {!isCollapsed && (
+                            <div className="space-y-1.5 mt-2">
+                              {plan.subtasks.map(st => (
                                 <div
-                                  onClick={() => handleToggleSubtask(plan.id, st.id)}
-                                  className="flex items-center space-x-2 text-xs text-zinc-700 dark:text-zinc-300 cursor-pointer flex-1 min-w-0"
+                                  key={st.id}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleToggleSubtask(plan.id, st.id);
+                                  }}
+                                  className="flex items-start space-x-2.5 p-2 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/60 transition cursor-pointer border border-zinc-100 dark:border-white/5"
                                 >
-                                  <span className={`w-4 h-4 rounded-md flex items-center justify-center text-[10px] border font-bold transition-all ${
+                                  <span className={`mt-0.5 w-4 h-4 rounded-md flex items-center justify-center text-[10px] border font-bold transition-all shrink-0 ${
                                     st.isDone
                                       ? 'bg-[var(--theme-accent,#07C160)] border-[var(--theme-accent,#07C160)] text-white shadow-xs'
                                       : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'
                                   }`}>
                                     {st.isDone ? '✓' : ''}
                                   </span>
-                                  <span className={`truncate ${st.isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : ''}`}>
+                                  <span className={`text-xs flex-1 break-words leading-relaxed ${
+                                    st.isDone ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200'
+                                  }`}>
                                     {st.title}
                                   </span>
                                 </div>
+                              ))}
+
+                              {/* Action links */}
+                              <div className="flex items-center justify-between pt-1.5 text-[11px]">
                                 <button
-                                  onClick={e => handleQuickRemoveSubtask(plan.id, st.id, e)}
-                                  className="p-1 text-zinc-300 hover:text-red-500 rounded-lg transition tactile-press"
-                                  title="删除此步骤"
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleOpenEdit(plan);
+                                  }}
+                                  className="text-zinc-400 hover:text-[var(--theme-accent,#07C160)] flex items-center space-x-1 transition tactile-press"
                                 >
-                                  <X className="w-3.5 h-3.5" />
+                                  <Plus className="w-3 h-3" />
+                                  <span>编辑/管理步骤</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleAIDecomposeExisting(plan, e);
+                                  }}
+                                  disabled={aiDecomposingPlanId === plan.id}
+                                  className="text-purple-500 hover:text-purple-600 dark:text-purple-400 flex items-center space-x-1 transition tactile-press disabled:opacity-50"
+                                >
+                                  {aiDecomposingPlanId === plan.id ? (
+                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3 h-3" />
+                                  )}
+                                  <span>{aiDecomposingPlanId === plan.id ? '拆解中...' : 'AI 智能再拆解'}</span>
                                 </button>
                               </div>
-                            ))}
-
-                            {/* Inline Quick Add Input */}
-                            <div className="flex items-center space-x-1.5 pt-1">
-                              <input
-                                type="text"
-                                value={inlineSubtaskInputs[plan.id] || ''}
-                                onChange={e => setInlineSubtaskInputs(prev => ({ ...prev, [plan.id]: e.target.value }))}
-                                onKeyDown={e => e.key === 'Enter' && handleQuickAddSubtask(plan.id)}
-                                placeholder="+ 添加执行微步骤..."
-                                className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100/90 dark:bg-[#1E1E26] border border-zinc-200/50 dark:border-white/5 text-zinc-800 dark:text-zinc-200 outline-none placeholder:text-zinc-400 focus:ring-1 focus:ring-[var(--theme-accent,#07C160)] transition-all"
-                              />
-                              <button
-                                onClick={() => handleQuickAddSubtask(plan.id)}
-                                disabled={!inlineSubtaskInputs[plan.id]?.trim()}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-[var(--theme-accent,#07C160)] hover:opacity-90 rounded-xl shadow-xs transition disabled:opacity-40 tactile-press"
-                              >
-                                添加
-                              </button>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-col items-center space-y-1 shrink-0">
-                      <button
-                        onClick={e => handleAIDecomposeExisting(plan, e)}
-                        disabled={aiDecomposingPlanId === plan.id}
-                        className="p-2 text-purple-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-all tactile-press"
-                        title="AI 智能拆解执行微步骤"
-                      >
-                        {aiDecomposingPlanId === plan.id ? (
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={e => handleOpenEdit(plan, e)}
-                        className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-all tactile-press"
-                        title="编辑"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={e => handleDeletePlan(plan.id, e)}
-                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-all tactile-press"
-                        title="删除"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+              </SwipeableItem>
               );
             })}
           </div>
         )}
       </div>
 
-      {/* Add / Edit Plan Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 shadow-ios-modal animate-scale-in border border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                {editingPlan ? '编辑计划' : '制定新计划 🐾'}
-              </h2>
+      {/* Add / Edit Plan BottomSheet */}
+      <BottomSheet
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingPlan ? '编辑计划' : '制定新计划 🐾'}
+      >
+        <form onSubmit={handleSavePlan} className="space-y-3 pb-2">
+          {/* Title */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">计划目标 *</label>
               <button
-                onClick={() => setShowModal(false)}
-                className="p-1 rounded-full text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                type="button"
+                onClick={handleFormAIAssist}
+                disabled={isFormAIAssisting}
+                className="text-[11px] text-purple-600 dark:text-purple-400 hover:text-purple-700 flex items-center space-x-1 font-semibold"
               >
-                <X className="w-5 h-5" />
+                <Sparkles className="w-3 h-3" />
+                <span>{isFormAIAssisting ? 'AI 正在构思拆解...' : '✨ AI 智能帮写并拆解'}</span>
               </button>
             </div>
-
-            <form onSubmit={handleSavePlan} className="mt-3 space-y-3">
-              {/* Title */}
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">计划目标 *</label>
-                  <button
-                    type="button"
-                    onClick={handleFormAIAssist}
-                    disabled={isFormAIAssisting}
-                    className="text-[11px] text-purple-600 dark:text-purple-400 hover:text-purple-700 flex items-center space-x-1 font-semibold"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>{isFormAIAssisting ? 'AI 正在构思拆解...' : '✨ AI 智能帮写并拆解'}</span>
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  placeholder="例如：完成猫咪疫苗预约、阅读 1 章书..."
-                  value={formTitle}
-                  onChange={e => setFormTitle(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">详情备注</label>
-                <textarea
-                  rows={2}
-                  placeholder="填写具体要求或行动备忘..."
-                  value={formDesc}
-                  onChange={e => setFormDesc(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              {/* Priority & Category */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">优先级</label>
-                  <select
-                    value={formPriority}
-                    onChange={e => setFormPriority(e.target.value as PriorityLevel)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
-                  >
-                    <option value="urgent">🚨 紧急</option>
-                    <option value="high">🔥 重要</option>
-                    <option value="medium">⚡ 普通</option>
-                    <option value="low">🌱 日常</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">分类</label>
-                  <select
-                    value={formCategory}
-                    onChange={e => setFormCategory(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
-                  >
-                    <option value="life">🌸 生活</option>
-                    <option value="cat">🐱 萌宠</option>
-                    <option value="work">💼 工作</option>
-                    <option value="study">📚 学习</option>
-                    <option value="health">🏃 健身</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Due Date */}
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">截止日期</label>
-                <input
-                  type="date"
-                  value={formDueDate}
-                  onChange={e => setFormDueDate(e.target.value)}
-                  className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
-                />
-              </div>
-
-              {/* Subtasks builder */}
-              <div>
-                <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">子步骤拆解</label>
-                <div className="flex space-x-2 mt-1">
-                  <input
-                    type="text"
-                    placeholder="输入子步骤并按添加..."
-                    value={newSubtaskTitle}
-                    onChange={e => setNewSubtaskTitle(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddSubtaskToForm();
-                      }
-                    }}
-                    className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddSubtaskToForm}
-                    className="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-xs font-semibold rounded-xl text-zinc-800 dark:text-zinc-200"
-                  >
-                    添加
-                  </button>
-                </div>
-
-                {formSubtasks.length > 0 && (
-                  <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-                    {formSubtasks.map(st => (
-                      <div key={st.id} className="flex items-center justify-between px-2 py-1 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg text-xs">
-                        <span className="truncate text-zinc-700 dark:text-zinc-300">{st.title}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSubtaskFromForm(st.id)}
-                          className="text-zinc-400 hover:text-red-500 text-xs ml-2"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="pt-2 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#07C160] hover:bg-[#06AD56] text-white shadow-md transition"
-                >
-                  保存计划
-                </button>
-              </div>
-            </form>
+            <input
+              type="text"
+              required
+              placeholder="例如：完成猫咪疫苗预约、阅读 1 章书..."
+              value={formTitle}
+              onChange={e => setFormTitle(e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
+            />
           </div>
-        </div>
-      )}
 
-      {/* AI Smart Planner Assistant Modal */}
-      {showAIModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 w-full max-w-md shadow-2xl border border-white/80 dark:border-zinc-800 space-y-4 max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-500 to-pink-400 text-white flex items-center justify-center shadow-xs">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                    猫步 AI 智能规划助手
-                  </h3>
-                </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  调用配置的真实 API 大模型进行结构化规划与行动拆解（拒绝预设模板）
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowAIModal(false);
-                  setAiPlanResult(null);
-                  setAiPlanError(null);
-                  setLiveReasoning('');
-                }}
-                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+          {/* Description */}
+          <div>
+            <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">详情备注</label>
+            <textarea
+              rows={2}
+              placeholder="填写具体要求或行动备忘..."
+              value={formDesc}
+              onChange={e => setFormDesc(e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
+
+          {/* Priority & Category */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">优先级</label>
+              <select
+                value={formPriority}
+                onChange={e => setFormPriority(e.target.value as PriorityLevel)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
               >
-                <X className="w-5 h-5" />
+                <option value="urgent">🚨 紧急</option>
+                <option value="high">🔥 重要</option>
+                <option value="medium">⚡ 普通</option>
+                <option value="low">🌱 日常</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">分类</label>
+              <select
+                value={formCategory}
+                onChange={e => setFormCategory(e.target.value)}
+                className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
+              >
+                <option value="life">🌸 生活</option>
+                <option value="cat">🐱 萌宠</option>
+                <option value="work">💼 工作</option>
+                <option value="study">📚 学习</option>
+                <option value="health">🏃 健身</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">截止日期</label>
+            <input
+              type="date"
+              value={formDueDate}
+              onChange={e => setFormDueDate(e.target.value)}
+              className="w-full mt-1 px-3 py-2 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none focus:ring-2 focus:ring-[#07C160] text-zinc-900 dark:text-zinc-100"
+            />
+          </div>
+
+          {/* Subtasks builder */}
+          <div>
+            <label className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">子步骤拆解</label>
+            <div className="flex space-x-2 mt-1">
+              <input
+                type="text"
+                placeholder="输入子步骤并按添加..."
+                value={newSubtaskTitle}
+                onChange={e => setNewSubtaskTitle(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddSubtaskToForm();
+                  }
+                }}
+                className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-zinc-100 dark:bg-zinc-800 border-none text-zinc-900 dark:text-zinc-100"
+              />
+              <button
+                type="button"
+                onClick={handleAddSubtaskToForm}
+                className="px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-xs font-semibold rounded-xl text-zinc-800 dark:text-zinc-200"
+              >
+                添加
               </button>
             </div>
+
+            {formSubtasks.length > 0 && (
+              <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                {formSubtasks.map(st => (
+                  <div key={st.id} className="flex items-center justify-between px-2 py-1 bg-zinc-50 dark:bg-zinc-800/60 rounded-lg text-xs">
+                    <span className="truncate text-zinc-700 dark:text-zinc-300">{st.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSubtaskFromForm(st.id)}
+                      className="text-zinc-400 hover:text-red-500 text-xs ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Modal Buttons */}
+          <div className="pt-2 flex items-center justify-end space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#07C160] hover:bg-[#06AD56] text-white shadow-md transition"
+            >
+              保存计划
+            </button>
+          </div>
+        </form>
+      </BottomSheet>
+
+      {/* AI Smart Planner Assistant BottomSheet */}
+      <BottomSheet
+        isOpen={showAIModal}
+        onClose={() => {
+          setShowAIModal(false);
+          setAiPlanResult(null);
+          setAiPlanError(null);
+          setLiveReasoning('');
+        }}
+        title="猫步 AI 智能规划助手"
+        subtitle="真实 API 大模型结构化规划与行动拆解"
+      >
+        <div className="space-y-4 pb-2">
 
             {/* Model Config & Switch Bar */}
             <div className="flex items-center justify-between p-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200/70 dark:border-zinc-700/60 text-xs">
@@ -1400,8 +1413,7 @@ export const PlansTab: React.FC<PlansTabProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
+      </BottomSheet>
     </div>
   );
 };

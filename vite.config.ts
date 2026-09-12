@@ -219,11 +219,22 @@ function microsoftProxyPlugin() {
   };
 }
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), microsoftProxyPlugin()],
   server: {
     port: 5173,
     host: true,
+  },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-tools': ['canvas-confetti', 'jsqr'],
+        },
+      },
+    },
   },
 });

@@ -43,3 +43,7 @@ android/local.properties
 android/.gradle/
 android/captures/
 android/.externalNativeBuild/
+
+# Local test artifacts (root-level screenshots & UI dumps)
+/*.png
+/window_dump.xml

@@ -28,6 +28,8 @@ const STORAGE_KEYS = {
   AI_SKILLS: 'maobu_ai_skills',
   AI_IMAGES: 'maobu_ai_images',
   SETTINGS: 'maobu_settings',
+  VAULT_VERIFIER: 'maobu_vault_verifier',
+  PASSWORDS_VAULT_CIPHERTEXT: 'maobu_passwords_vault_ciphertext',
 };
 
 // Initial Seed Data - Pure Software Onboarding & Usage Guide (Zero Dummy Presets)
@@ -35,7 +37,7 @@ const DEFAULT_PLANS: PlanItem[] = [
   {
     id: 'p_readme',
     title: '🐱【猫步可爱】全能个人助理使用说明',
-    description: '欢迎使用猫步可爱！本条目为软件内置功能使用指南。你可以点击勾选子步骤体验进度，也可以随时编辑或点击垃圾桶删除。',
+    description: '欢迎使用猫步可爱！本条目为软件内置功能使用指南。你可以点击勾选子步骤体验进度，点击卡片直接编辑，或向左滑动卡片进行管理与删除。',
     priority: 'high',
     category: 'life',
     dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
@@ -87,8 +89,9 @@ const DEFAULT_GOOGLE_ACCOUNTS: GoogleWarmingAccount[] = [];
 const DEFAULT_SETTINGS: AppSettings = {
   themeMode: 'light',
   accentColor: 'wechat',
-  deviceFrame: 'mobile',
+  deviceFrame: 'desktop',
   soundEnabled: true,
+  hapticsEnabled: true,
   hasMasterPassword: false,
   activeTab: 'plans',
 };
@@ -156,9 +159,36 @@ export const db = {
   },
   saveNotes: (notes: NoteItem[]) => setStored(STORAGE_KEYS.NOTES, notes),
 
-  // Passwords
-  getPasswords: (): PasswordItem[] => getStored(STORAGE_KEYS.PASSWORDS, []),
+  // Passwords & Master Password Encryption
+  getPasswords: (): PasswordItem[] => {
+    // When master password protection is active, plaintext storage is kept empty
+    if (localStorage.getItem(STORAGE_KEYS.VAULT_VERIFIER)) {
+      return [];
+    }
+    return getStored(STORAGE_KEYS.PASSWORDS, []);
+  },
   savePasswords: (passwords: PasswordItem[]) => setStored(STORAGE_KEYS.PASSWORDS, passwords),
+  hasMasterPassword: (): boolean => {
+    return !!localStorage.getItem(STORAGE_KEYS.VAULT_VERIFIER);
+  },
+  getVaultVerifier: (): string | null => {
+    return localStorage.getItem(STORAGE_KEYS.VAULT_VERIFIER);
+  },
+  saveVaultVerifier: (verifier: string): void => {
+    localStorage.setItem(STORAGE_KEYS.VAULT_VERIFIER, verifier);
+  },
+  clearVaultVerifier: (): void => {
+    localStorage.removeItem(STORAGE_KEYS.VAULT_VERIFIER);
+  },
+  getPasswordsCiphertext: (): string | null => {
+    return localStorage.getItem(STORAGE_KEYS.PASSWORDS_VAULT_CIPHERTEXT);
+  },
+  savePasswordsCiphertext: (ciphertext: string): void => {
+    localStorage.setItem(STORAGE_KEYS.PASSWORDS_VAULT_CIPHERTEXT, ciphertext);
+  },
+  clearPasswordsCiphertext: (): void => {
+    localStorage.removeItem(STORAGE_KEYS.PASSWORDS_VAULT_CIPHERTEXT);
+  },
 
   // 2FA
   get2FATokens: (): TwoFactorToken[] => getStored(STORAGE_KEYS.TWO_FACTOR, DEFAULT_TWO_FACTOR),
@@ -205,23 +235,35 @@ export const db = {
   saveAIProviders: (providers: AIProvider[]) => setStored(STORAGE_KEYS.AI_PROVIDERS, providers),
 
   // AI Sessions
-  getAISessions: (): AISession[] => getStored(STORAGE_KEYS.AI_SESSIONS, [
-    {
-      id: 'sess_default',
-      title: '与猫步喵的初次相遇',
-      activeSkillId: 'skill_cat',
-      messages: [
-        {
-          id: 'msg_welcome',
-          role: 'assistant',
-          content: '喵呜~ (ฅ^•ﻌ•^ฅ) 主人你好呀！我是你的专属萌宠助理【猫步喵】！今天想做点什么计划，还是记录一些有趣的想法呢？我随时在这里陪伴你哦~',
-          timestamp: new Date().toISOString(),
-        }
-      ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  ]),
+  getAISessions: (): AISession[] => {
+    const rawSessions = getStored<AISession[]>(STORAGE_KEYS.AI_SESSIONS, [
+      {
+        id: 'sess_default',
+        title: '与猫步喵的初次相遇',
+        activeSkillId: 'skill_cat',
+        messages: [
+          {
+            id: 'msg_welcome',
+            role: 'assistant',
+            content: '喵呜~ (ฅ^•ﻌ•^ฅ) 主人你好呀！我是你的专属萌宠助理【猫步喵】！今天想做点什么计划，还是记录一些有趣的想法呢？我随时在这里陪伴你哦~',
+            timestamp: new Date().toISOString(),
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    ]);
+
+    // Sanitize any orphaned isStreaming/isReasoning flags from historical sessions or page reloads
+    return rawSessions.map(s => ({
+      ...s,
+      messages: s.messages.map(m =>
+        m.isStreaming || m.isReasoning
+          ? { ...m, isStreaming: false, isReasoning: false }
+          : m
+      ),
+    }));
+  },
   saveAISessions: (sessions: AISession[]) => setStored(STORAGE_KEYS.AI_SESSIONS, sessions),
 
   // AI Skills
@@ -268,6 +310,8 @@ export const db = {
       aiSkills: db.getAISkills(),
       aiImages: db.getAIImages(),
       settings: db.getSettings(),
+      vaultVerifier: db.getVaultVerifier() || undefined,
+      passwordsCiphertext: db.getPasswordsCiphertext() || undefined,
     };
   },
 
@@ -286,6 +330,16 @@ export const db = {
       if (Array.isArray(backup.aiSkills)) db.saveAISkills(backup.aiSkills);
       if (Array.isArray(backup.aiImages)) db.saveAIImages(backup.aiImages);
       if (backup.settings) db.saveSettings(backup.settings);
+      if (backup.vaultVerifier) {
+        db.saveVaultVerifier(backup.vaultVerifier);
+      } else {
+        db.clearVaultVerifier();
+      }
+      if (backup.passwordsCiphertext) {
+        db.savePasswordsCiphertext(backup.passwordsCiphertext);
+      } else {
+        db.clearPasswordsCiphertext();
+      }
       return true;
     } catch (err) {
       console.error('Backup import error:', err);
