@@ -21,7 +21,7 @@ function cleanUrl(serverUrl: string, remoteDir = '', fileName = ''): string {
   if (!base.endsWith('/')) base += '/';
 
   if (remoteDir) {
-    let dir = remoteDir.trim().replace(/^\/+|\/+$/g, '');
+    const dir = remoteDir.trim().replace(/^\/+|\/+$/g, '');
     base += dir + '/';
   }
 

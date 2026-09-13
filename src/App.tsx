@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   PlanItem,
   NoteItem,
@@ -13,13 +14,21 @@ import {
   AppTab,
   DeviceFrame,
   GoogleWarmingAccount,
+  AppUpdateInfo,
 } from './types';
 import { db } from './utils/storage';
 import { sound } from './utils/sound';
+import { perf } from './utils/perf';
+import { applyAccent } from './utils/theme';
+import { checkAppUpdate, CURRENT_VERSION } from './utils/updater';
 import { MobileFrame } from './components/MobileFrame';
 import { TopHeader } from './components/TopHeader';
 import { BottomTabBar } from './components/BottomTabBar';
 import { QuickSearchPalette } from './components/common/QuickSearchPalette';
+import { AboutModal } from './components/modals/AboutModal';
+import { UpdateModal } from './components/modals/UpdateModal';
+import { ToastProvider, useToast, ErrorBoundary, HeaderScrollContext, useProvideHeaderScroll } from './components/ui';
+import { useIsWideScreen } from './hooks/useMediaQuery';
 
 const DashboardBentoView = React.lazy(() => import('./components/tabs/DashboardBentoView').then(m => ({ default: m.DashboardBentoView })));
 const PlansTab = React.lazy(() => import('./components/tabs/PlansTab').then(m => ({ default: m.PlansTab })));
@@ -29,16 +38,35 @@ const AITab = React.lazy(() => import('./components/tabs/AITab').then(m => ({ de
 const SettingsTab = React.lazy(() => import('./components/tabs/SettingsTab').then(m => ({ default: m.SettingsTab })));
 
 const TabLoadingSkeleton: React.FC = () => (
-  <div className="flex-1 flex flex-col items-center justify-center space-y-3 p-6 select-none animate-pulse">
-    <div className="w-12 h-12 rounded-3xl bg-pink-100 dark:bg-pink-950/40 flex items-center justify-center text-2xl shadow-inner">
-      🐾
+  <div className="flex-1 px-4 pt-3 space-y-3 select-none animate-pulse">
+    <div className="h-11 rounded-full bg-surface-2/70" />
+    <div className="h-[88px] rounded-2xl bg-surface border border-line" />
+    <div className="flex gap-2">
+      <div className="h-8 w-20 rounded-full bg-surface-2/70" />
+      <div className="h-8 w-16 rounded-full bg-surface-2/50" />
+      <div className="h-8 w-16 rounded-full bg-surface-2/40" />
     </div>
-    <div className="space-y-1.5 text-center">
-      <div className="h-4 w-28 bg-zinc-200 dark:bg-zinc-800 rounded-full mx-auto" />
-      <div className="h-2.5 w-40 bg-zinc-100 dark:bg-zinc-800/60 rounded-full mx-auto" />
-    </div>
+    <div className="h-36 rounded-2xl bg-surface border border-line" />
+    <div className="h-36 rounded-2xl bg-surface/70 border border-line" />
   </div>
 );
+
+/** Surfaces storage quota failures fired by the db layer. */
+const StorageQuotaWatcher: React.FC = () => {
+  const toast = useToast();
+  React.useEffect(() => {
+    let lastNotified = 0;
+    const handler = () => {
+      const now = Date.now();
+      if (now - lastNotified < 5000) return;
+      lastNotified = now;
+      toast.warn('本地存储空间不足，较早的生成图片已被清理');
+    };
+    window.addEventListener('maobu-storage-quota', handler);
+    return () => window.removeEventListener('maobu-storage-quota', handler);
+  }, [toast]);
+  return null;
+};
 
 export const App: React.FC = () => {
   // State from Local DB
@@ -54,15 +82,10 @@ export const App: React.FC = () => {
   const [images, setImages] = useState<AIImageGeneration[]>([]);
   const [settings, setSettings] = useState<AppSettings>(db.getSettings());
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1200
-  );
-
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const headerScroll = useProvideHeaderScroll(settings.activeTab);
 
   // Global Cmd+K / Ctrl+K listener
   useEffect(() => {
@@ -109,44 +132,74 @@ export const App: React.FC = () => {
     }
 
     // Apply Accent Color variables
-    let hex = '#07C160';
-    let light = '#E8F8F0';
-    let bubble = '#95EC69';
-    let glow = 'rgba(7, 193, 96, 0.25)';
-
-    if (currentSettings.accentColor === 'catpaw') {
-      hex = '#FF6B8B';
-      light = '#FFF0F3';
-      bubble = '#FF8DA6';
-      glow = 'rgba(255, 107, 139, 0.3)';
-    } else if (currentSettings.accentColor === 'apple') {
-      hex = '#0A84FF';
-      light = '#EFF6FF';
-      bubble = '#5AC8FA';
-      glow = 'rgba(10, 132, 255, 0.28)';
-    } else if (currentSettings.accentColor === 'orange') {
-      hex = '#FF9500';
-      light = '#FFF7ED';
-      bubble = '#FFB340';
-      glow = 'rgba(255, 149, 0, 0.28)';
-    } else if (currentSettings.accentColor === 'purple') {
-      hex = '#AF52DE';
-      light = '#FAF5FF';
-      bubble = '#DA8FFF';
-      glow = 'rgba(175, 82, 222, 0.28)';
-    }
-
-    document.documentElement.style.setProperty('--theme-accent', hex);
-    document.documentElement.style.setProperty('--theme-accent-light', light);
-    document.documentElement.style.setProperty('--theme-accent-glow', glow);
-    document.documentElement.style.setProperty('--theme-bubble', bubble);
+    applyAccent(currentSettings.accentColor);
   };
 
   useEffect(() => {
     refreshAllData();
+    perf.measure('app-boot', 'app-boot');
+
+    // Prefetch the remaining tab chunks while idle, so the first tab
+    // switch never shows the loading skeleton.
+    const prefetch = () => {
+      void import('./components/tabs/PlansTab');
+      void import('./components/tabs/NotesTab');
+      void import('./components/tabs/VaultTab');
+      void import('./components/tabs/AITab');
+      void import('./components/tabs/SettingsTab');
+      void import('./components/tabs/DashboardBentoView');
+    };
+    const idleApi = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof idleApi.requestIdleCallback === 'function') {
+      idleId = idleApi.requestIdleCallback(prefetch, { timeout: 3000 });
+    } else {
+      timeoutId = setTimeout(prefetch, 2000);
+    }
+    return () => {
+      if (idleId !== undefined && idleApi.cancelIdleCallback) idleApi.cancelIdleCallback(idleId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
+  // Tab transition timing (dev console only)
+  useEffect(() => {
+    perf.measure(`tab:${settings.activeTab}`, `tab:${settings.activeTab}:start`);
+    perf.clear(`tab:${settings.activeTab}:start`);
+  }, [settings.activeTab]);
+
+  // Startup silent update check if autoCheckUpdate is enabled
+  useEffect(() => {
+    if (settings.autoCheckUpdate === false) return;
+    let isMounted = true;
+    const runCheck = async () => {
+      try {
+        const res = await checkAppUpdate(CURRENT_VERSION);
+        if (!isMounted) return;
+        if (res.hasUpdate && res.latest) {
+          if (settings.dismissedVersion && settings.dismissedVersion === res.latest.version) {
+            return;
+          }
+          setUpdateInfo(res.latest);
+          setIsUpdateModalOpen(true);
+        }
+      } catch (err) {
+        console.warn('Auto update check failed:', err);
+      }
+    };
+    const timer = setTimeout(runCheck, 2500);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [settings.autoCheckUpdate, settings.dismissedVersion]);
+
   const handleSelectTab = (tab: AppTab) => {
+    perf.mark(`tab:${tab}:start`);
     setSettings(prev => {
       const updated: AppSettings = { ...prev, activeTab: tab };
       db.saveSettings(updated);
@@ -187,12 +240,105 @@ export const App: React.FC = () => {
   // Pending plans badge count
   const pendingPlansCount = plans.filter(p => !p.isCompleted).length;
   const webdavConfigured = Boolean(settings.webdav?.serverUrl && settings.webdav?.username);
-  const isWideScreen = windowWidth >= 1024;
+  const isWideScreen = useIsWideScreen();
   const isDesktopWorkbench = isWideScreen && settings.deviceFrame === 'desktop';
   const isDarkMode = settings.themeMode === 'dark' || (settings.themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
+  const renderActiveTab = () => {
+    switch (settings.activeTab) {
+      case 'dashboard':
+        return (
+          <ErrorBoundary label="看板">
+            <DashboardBentoView
+              plans={plans}
+              onUpdatePlans={setPlans}
+              notes={notes}
+              onUpdateNotes={setNotes}
+              tokens={tokens}
+              accentColor={settings.accentColor}
+              onOpenPlansTab={() => handleSelectTab('plans')}
+              onOpenNotesTab={() => handleSelectTab('notes')}
+              onOpenVaultTab={() => handleSelectTab('vault')}
+              onOpenAITab={() => handleSelectTab('ai')}
+            />
+          </ErrorBoundary>
+        );
+      case 'plans':
+        return (
+          <ErrorBoundary label="计划">
+            <PlansTab
+              plans={plans}
+              onUpdatePlans={setPlans}
+              accentColor={settings.accentColor}
+              onSwitchToAITab={() => handleSelectTab('ai')}
+              onSwitchToDashboard={() => handleSelectTab('dashboard')}
+            />
+          </ErrorBoundary>
+        );
+      case 'notes':
+        return (
+          <ErrorBoundary label="笔记">
+            <NotesTab
+              notes={notes}
+              onUpdateNotes={setNotes}
+              accentColor={settings.accentColor}
+              onSwitchToAITab={() => handleSelectTab('ai')}
+            />
+          </ErrorBoundary>
+        );
+      case 'vault':
+        return (
+          <ErrorBoundary label="安全箱">
+            <VaultTab
+              passwords={passwords}
+              onUpdatePasswords={setPasswords}
+              tokens={tokens}
+              onUpdateTokens={setTokens}
+              hotmailAccounts={hotmailAccounts}
+              onUpdateHotmailAccounts={setHotmailAccounts}
+              googleAccounts={googleAccounts}
+              onUpdateGoogleAccounts={handleUpdateGoogleAccounts}
+              providers={providers}
+              accentColor={settings.accentColor}
+            />
+          </ErrorBoundary>
+        );
+      case 'ai':
+        return (
+          <ErrorBoundary label="AI 助手">
+            <AITab
+              providers={providers}
+              onUpdateProviders={setProviders}
+              sessions={sessions}
+              onUpdateSessions={setSessions}
+              skills={skills}
+              onUpdateSkills={setSkills}
+              images={images}
+              onUpdateImages={setImages}
+              accentColor={settings.accentColor}
+            />
+          </ErrorBoundary>
+        );
+      case 'settings':
+        return (
+          <ErrorBoundary label="设置">
+            <SettingsTab
+              settings={settings}
+              onUpdateSettings={setSettings}
+              onRefreshAllData={refreshAllData}
+              onOpenAbout={() => setIsAboutOpen(true)}
+              hasUpdate={Boolean(updateInfo)}
+            />
+          </ErrorBoundary>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <>
+    <ToastProvider>
+      <StorageQuotaWatcher />
       <MobileFrame
         deviceFrame={settings.deviceFrame}
         onToggleFrame={handleToggleFrame}
@@ -208,98 +354,40 @@ export const App: React.FC = () => {
         onToggleTheme={handleToggleTheme}
         isDarkMode={isDarkMode}
       >
-        {/* Top Header: iOS 18 fluid glass style on mobile, content header on desktop */}
+        {/* Scroll-aware header + pages share the header-scroll channel */}
+        <HeaderScrollContext.Provider value={headerScroll}>
+        {/* Top Header: large-title mobile header, breadcrumb on desktop workbench */}
         <TopHeader
           activeTab={settings.activeTab}
-          accentColor={settings.accentColor}
           onOpenSearch={() => setIsSearchOpen(true)}
-          onOpenAI={() => handleSelectTab('ai')}
           onToggleDashboard={() => handleSelectTab(settings.activeTab === 'dashboard' ? 'plans' : 'dashboard')}
           isDesktop={isDesktopWorkbench}
         />
 
-        {/* Tab Pages: Responsive Container */}
+        {/* Tab Pages with soft transition */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           <React.Suspense fallback={<TabLoadingSkeleton />}>
-            {settings.activeTab === 'dashboard' && (
-              <DashboardBentoView
-                plans={plans}
-                onUpdatePlans={setPlans}
-                notes={notes}
-                onUpdateNotes={setNotes}
-                tokens={tokens}
-                accentColor={settings.accentColor}
-                onOpenPlansTab={() => handleSelectTab('plans')}
-                onOpenNotesTab={() => handleSelectTab('notes')}
-                onOpenVaultTab={() => handleSelectTab('vault')}
-                onOpenAITab={() => handleSelectTab('ai')}
-              />
-            )}
-
-            {settings.activeTab === 'plans' && (
-              <PlansTab
-                plans={plans}
-                onUpdatePlans={setPlans}
-                accentColor={settings.accentColor}
-                onSwitchToAITab={() => handleSelectTab('ai')}
-                onSwitchToDashboard={() => handleSelectTab('dashboard')}
-              />
-            )}
-
-            {settings.activeTab === 'notes' && (
-              <NotesTab
-                notes={notes}
-                onUpdateNotes={setNotes}
-                accentColor={settings.accentColor}
-                onSwitchToAITab={() => handleSelectTab('ai')}
-              />
-            )}
-
-            {settings.activeTab === 'vault' && (
-              <VaultTab
-                passwords={passwords}
-                onUpdatePasswords={setPasswords}
-                tokens={tokens}
-                onUpdateTokens={setTokens}
-                hotmailAccounts={hotmailAccounts}
-                onUpdateHotmailAccounts={setHotmailAccounts}
-                googleAccounts={googleAccounts}
-                onUpdateGoogleAccounts={handleUpdateGoogleAccounts}
-                providers={providers}
-                accentColor={settings.accentColor}
-              />
-            )}
-
-            {settings.activeTab === 'ai' && (
-              <AITab
-                providers={providers}
-                onUpdateProviders={setProviders}
-                sessions={sessions}
-                onUpdateSessions={setSessions}
-                skills={skills}
-                onUpdateSkills={setSkills}
-                images={images}
-                onUpdateImages={setImages}
-                accentColor={settings.accentColor}
-              />
-            )}
-
-            {settings.activeTab === 'settings' && (
-              <SettingsTab
-                settings={settings}
-                onUpdateSettings={setSettings}
-                onRefreshAllData={refreshAllData}
-              />
-            )}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={settings.activeTab}
+                className="flex-1 flex flex-col overflow-hidden"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {renderActiveTab()}
+              </motion.div>
+            </AnimatePresence>
           </React.Suspense>
         </div>
+        </HeaderScrollContext.Provider>
 
         {/* Bottom WeChat Tab Bar: Only on mobile / phone chassis viewports */}
         {!isDesktopWorkbench && (
           <BottomTabBar
             activeTab={settings.activeTab}
             onSelectTab={handleSelectTab}
-            accentColor={settings.accentColor}
             pendingPlansCount={pendingPlansCount}
           />
         )}
@@ -316,7 +404,32 @@ export const App: React.FC = () => {
         onSelectTab={handleSelectTab}
         accentColor={settings.accentColor}
       />
-    </>
+
+      {/* About Modal (Android Fullscreen Flow) */}
+      <AboutModal
+        isOpen={isAboutOpen}
+        onClose={() => setIsAboutOpen(false)}
+        settings={settings}
+        onUpdateSettings={setSettings}
+      />
+
+      {/* Auto Update Notification Modal */}
+      {updateInfo && (
+        <UpdateModal
+          isOpen={isUpdateModalOpen}
+          updateInfo={updateInfo}
+          onClose={() => setIsUpdateModalOpen(false)}
+          onDismissForever={() => {
+            if (updateInfo) {
+              const updated = { ...settings, dismissedVersion: updateInfo.version };
+              setSettings(updated);
+              db.saveSettings(updated);
+            }
+            setIsUpdateModalOpen(false);
+          }}
+        />
+      )}
+    </ToastProvider>
   );
 };
 

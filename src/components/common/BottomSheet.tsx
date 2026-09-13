@@ -51,6 +51,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isOpen]);
 
+  const handleClose = useCallback(() => {
+    haptics.impactLight();
+    sound.playTap();
+    onClose();
+  }, [onClose]);
+
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -62,7 +68,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, handleClose]);
 
   // Mobile Virtual Keyboard Avoidance (via visualViewport API)
   useEffect(() => {
@@ -85,12 +91,6 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       vv.removeEventListener('scroll', updateKeyboard);
     };
   }, [isOpen]);
-
-  const handleClose = useCallback(() => {
-    haptics.impactLight();
-    sound.playTap();
-    onClose();
-  }, [onClose]);
 
   // Touch Drag-to-Close gestures on Header
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -160,14 +160,14 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col justify-end transition-opacity duration-250 ${
+      className={`fixed inset-0 z-50 flex flex-col justify-end transition-opacity duration-200 ${
         isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
       {/* Backdrop */}
       <div
         onClick={handleClose}
-        className={`absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-250 ${
+        className={`absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm transition-opacity duration-200 ${
           isOpen ? 'opacity-100' : 'opacity-0'
         }`}
       />
@@ -183,7 +183,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
           maxHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight}px)` : undefined,
         }}
-        className={`relative w-full max-w-lg mx-auto bg-white dark:bg-[#16161D] rounded-t-[32px] shadow-[0_-12px_40px_rgba(0,0,0,0.18)] dark:shadow-[0_-12px_40px_rgba(0,0,0,0.6)] border-t border-x border-zinc-200/80 dark:border-white/10 flex flex-col ${maxHeight} overflow-hidden`}
+        className={`relative w-full max-w-lg mx-auto bg-surface rounded-t-sheet shadow-[0_-12px_40px_rgba(0,0,0,0.18)] dark:shadow-[0_-12px_40px_rgba(0,0,0,0.6)] border-t border-x border-line dark:border-white/10 flex flex-col ${maxHeight} overflow-hidden`}
       >
         {/* Touch gesture header & drag pill */}
         <div
@@ -241,7 +241,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
         {/* Optional Sticky Footer */}
         {footer && (
-          <div className="p-3 border-t border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/80 dark:bg-[#1A1A22]/80 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shrink-0">
+          <div className="p-3 border-t border-line bg-surface-2/80 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] shrink-0">
             {footer}
           </div>
         )}

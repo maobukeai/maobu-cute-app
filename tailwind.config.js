@@ -7,7 +7,24 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // ── Semantic design tokens ─────────────────────────────────
+      // All values bridge to CSS variables in src/index.css so that
+      // dark mode and accent switching work through a single source.
       colors: {
+        canvas: 'rgb(var(--canvas) / <alpha-value>)',        // page background
+        surface: 'rgb(var(--surface) / <alpha-value>)',      // cards / sheets
+        'surface-2': 'rgb(var(--surface-2) / <alpha-value>)', // inputs, subtle fills
+        ink: 'rgb(var(--ink) / <alpha-value>)',              // primary text
+        'ink-2': 'rgb(var(--ink-2) / <alpha-value>)',        // secondary text
+        'ink-3': 'rgb(var(--ink-3) / <alpha-value>)',        // tertiary text
+        line: 'rgb(var(--line) / <alpha-value>)',            // hairline borders
+        accent: 'rgb(var(--accent-rgb) / <alpha-value>)',    // runtime-switchable accent
+        'accent-soft': 'var(--theme-accent-light)',          // pre-mixed tint (no alpha)
+        danger: 'rgb(244 63 94 / <alpha-value>)',            // rose-500
+        warn: 'rgb(245 158 11 / <alpha-value>)',             // amber-500
+        ok: 'rgb(16 185 129 / <alpha-value>)',               // emerald-500
+
+        // Legacy palettes kept for components not yet migrated
         wechat: {
           green: '#07C160',
           'green-dark': '#06AD56',
@@ -55,6 +72,8 @@ export default {
           '"SF Pro Display"',
           'system-ui',
           '"PingFang SC"',
+          '"HarmonyOS Sans SC"',
+          '"MiSans"',
           '"Hiragino Sans GB"',
           '"Microsoft YaHei"',
           'sans-serif'
@@ -67,7 +86,24 @@ export default {
           'monospace'
         ]
       },
+      // ── Type scale (minimum readable size = 12px) ──────────────
+      fontSize: {
+        display: ['28px', { lineHeight: '1.25', letterSpacing: '-0.02em', fontWeight: '700' }],
+        title: ['22px', { lineHeight: '1.3', letterSpacing: '-0.01em', fontWeight: '700' }],
+        headline: ['17px', { lineHeight: '1.4', fontWeight: '600' }],
+        body: ['15px', { lineHeight: '1.55' }],
+        sub: ['13px', { lineHeight: '1.5' }],
+        caption: ['12px', { lineHeight: '1.45' }],
+      },
+      borderRadius: {
+        card: '20px',
+        sheet: '28px',
+        island: '32px',
+      },
       boxShadow: {
+        'elev-1': '0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 6px -2px rgba(0, 0, 0, 0.03)',
+        'elev-2': '0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03)',
+        'elev-3': '0 16px 40px -8px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.02)',
         'ios-sm': '0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02)',
         'ios-card': '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02)',
         'ios-float': '0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03)',
@@ -76,6 +112,10 @@ export default {
         'tabbar': '0 -1px 0 0 rgba(0, 0, 0, 0.06), 0 -8px 24px -4px rgba(0, 0, 0, 0.03)',
         'tabbar-dark': '0 -1px 0 0 rgba(255, 255, 255, 0.06), 0 -8px 24px -4px rgba(0, 0, 0, 0.4)',
         'glow-accent': '0 4px 20px -2px var(--theme-accent-glow, rgba(7, 193, 96, 0.35))',
+      },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
       animation: {
         'scale-in': 'scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',

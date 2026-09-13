@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, CalendarCheck, StickyNote, ShieldCheck, Bot, ArrowRight, X, Sparkles, LayoutGrid } from 'lucide-react';
+import { Search, CalendarCheck, StickyNote, ShieldCheck, Bot, Compass, ArrowRight, X, LayoutGrid } from 'lucide-react';
 import { PlanItem, NoteItem, PasswordItem, TwoFactorToken, AppTab, AccentColor } from '../../types';
 import { sound } from '../../utils/sound';
 import { haptics } from '../../utils/haptics';
@@ -23,7 +23,6 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
   passwords,
   tokens,
   onSelectTab,
-  accentColor,
 }) => {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,27 +84,27 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
       {/* Background dismissal */}
       <div className="fixed inset-0 -z-10" onClick={onClose} />
 
-      <div className="w-full max-w-2xl bg-white/95 dark:bg-[#181820]/95 backdrop-blur-2xl rounded-3xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_24px_60px_rgba(0,0,0,0.22)] overflow-hidden flex flex-col">
+      <div className="w-full max-w-2xl bg-surface/95 backdrop-blur-2xl rounded-3xl border border-line shadow-[0_24px_60px_rgba(0,0,0,0.22)] overflow-hidden flex flex-col">
         {/* Search Input Bar */}
-        <div className="flex items-center px-4 py-3.5 border-b border-zinc-200/70 dark:border-zinc-800/80">
-          <Search className="w-5 h-5 text-zinc-400 dark:text-zinc-500 mr-3 shrink-0" />
+        <div className="flex items-center px-4 py-3.5 border-b border-line/70">
+          <Search className="w-5 h-5 text-ink-3 mr-3 shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="全站全局极速搜索：待办、Markdown笔记、密码箱、2FA密钥..."
-            className="flex-1 bg-transparent text-sm sm:text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none"
+            className="flex-1 bg-transparent text-sm sm:text-base text-ink placeholder:text-ink-3 outline-none"
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-full mr-2"
+              className="p-1 text-ink-3 hover:text-ink rounded-full mr-2"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-[11px] font-mono text-zinc-400 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+          <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-caption font-mono text-ink-3 bg-surface-2 border border-line rounded-lg">
             ESC 退出
           </kbd>
         </div>
@@ -115,8 +114,8 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
           {/* Quick Tab Jump Bar */}
           {!q && (
             <div>
-              <div className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-2 mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-pink-500" />
+              <div className="text-caption font-semibold text-ink-3 uppercase tracking-wider px-2 mb-1.5 flex items-center gap-1.5">
+                <Compass className="w-3 h-3 text-accent" />
                 <span>快速前往模块</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -125,21 +124,21 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
                   { tab: 'plans' as AppTab, label: '计划清单', icon: CalendarCheck, desc: `${plans.length} 条待办` },
                   { tab: 'notes' as AppTab, label: '灵感备忘', icon: StickyNote, desc: `${notes.length} 篇笔记` },
                   { tab: 'vault' as AppTab, label: '密码与2FA', icon: ShieldCheck, desc: `${passwords.length + tokens.length} 项安全资产` },
-                  { tab: 'ai' as AppTab, label: 'AI伴侣与生图', icon: Bot, desc: '大模型对话' },
+                  { tab: 'ai' as AppTab, label: 'AI 助手', icon: Bot, desc: '对话与生图' },
                 ].map(item => {
                   const Icon = item.icon;
                   return (
                     <button
                       key={item.tab}
                       onClick={() => handleNavigate(item.tab)}
-                      className="flex flex-col items-start p-2.5 rounded-2xl bg-zinc-50 hover:bg-zinc-100/90 dark:bg-zinc-800/50 dark:hover:bg-zinc-800 border border-zinc-200/50 dark:border-zinc-700/40 text-left transition-all group"
+                      className="flex flex-col items-start p-2.5 rounded-2xl bg-surface-2/60 hover:bg-surface-2 border border-line/60 text-left transition-all group"
                     >
                       <div className="flex items-center justify-between w-full mb-1">
-                        <Icon className="w-4 h-4 text-zinc-600 dark:text-zinc-300 group-hover:text-pink-500 transition-colors" />
-                        <ArrowRight className="w-3 h-3 text-zinc-300 dark:text-zinc-600 group-hover:translate-x-0.5 transition-transform" />
+                        <Icon className="w-4 h-4 text-ink-2 group-hover:text-accent transition-colors" />
+                        <ArrowRight className="w-3 h-3 text-ink-3 group-hover:translate-x-0.5 transition-transform" />
                       </div>
-                      <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{item.label}</span>
-                      <span className="text-[10px] text-zinc-400 mt-0.5">{item.desc}</span>
+                      <span className="text-xs font-semibold text-ink">{item.label}</span>
+                      <span className="text-caption text-ink-3 mt-0.5">{item.desc}</span>
                     </button>
                   );
                 })}
@@ -150,14 +149,14 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
           {/* Plans Section */}
           {filteredPlans.length > 0 && (
             <div>
-              <div className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
+              <div className="text-caption font-semibold text-ink-3 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <CalendarCheck className="w-3 h-3 text-emerald-500" />
                   <span>待办计划</span>
                 </span>
                 <button
                   onClick={() => handleNavigate('plans')}
-                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline"
+                  className="text-caption text-emerald-600 dark:text-emerald-400 hover:underline"
                 >
                   查看全部
                 </button>
@@ -167,20 +166,20 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
                   <button
                     key={plan.id}
                     onClick={() => handleNavigate('plans')}
-                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-left transition-colors group border border-transparent hover:border-zinc-200/60 dark:hover:border-zinc-700/60"
+                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-surface-2 text-left transition-colors group border border-transparent hover:border-line/60"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${plan.isCompleted ? 'bg-zinc-300 dark:bg-zinc-600' : 'bg-emerald-500'}`} />
                       <div className="truncate">
-                        <p className={`text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate ${plan.isCompleted ? 'line-through text-zinc-400' : ''}`}>
+                        <p className={`text-xs font-medium text-ink truncate ${plan.isCompleted ? 'line-through text-ink-3' : ''}`}>
                           {plan.title}
                         </p>
                         {plan.description && (
-                          <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">{plan.description}</p>
+                          <p className="text-caption text-ink-3 truncate">{plan.description}</p>
                         )}
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 shrink-0 ml-2">
+                    <span className="text-caption px-2 py-0.5 rounded-full bg-surface-2 text-ink-2 shrink-0 ml-2">
                       {plan.priority}
                     </span>
                   </button>
@@ -192,14 +191,14 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
           {/* Notes Section */}
           {filteredNotes.length > 0 && (
             <div>
-              <div className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
+              <div className="text-caption font-semibold text-ink-3 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <StickyNote className="w-3 h-3 text-amber-500" />
                   <span>灵感笔记</span>
                 </span>
                 <button
                   onClick={() => handleNavigate('notes')}
-                  className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline"
+                  className="text-caption text-amber-600 dark:text-amber-400 hover:underline"
                 >
                   查看全部
                 </button>
@@ -209,16 +208,16 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
                   <button
                     key={note.id}
                     onClick={() => handleNavigate('notes')}
-                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-left transition-colors group border border-transparent hover:border-zinc-200/60 dark:hover:border-zinc-700/60"
+                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-surface-2 text-left transition-colors group border border-transparent hover:border-line/60"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                       <div className="truncate">
-                        <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{note.title}</p>
-                        <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">{note.content.replace(/[#*`]/g, '').slice(0, 60)}</p>
+                        <p className="text-xs font-medium text-ink truncate">{note.title}</p>
+                        <p className="text-caption text-ink-3 truncate">{note.content.replace(/[#*`]/g, '').slice(0, 60)}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 shrink-0 ml-2">
+                    <span className="text-caption px-2 py-0.5 rounded-full bg-surface-2 text-ink-2 shrink-0 ml-2">
                       {note.category || '笔记'}
                     </span>
                   </button>
@@ -230,14 +229,14 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
           {/* Vault Section */}
           {filteredVault.length > 0 && (
             <div>
-              <div className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
+              <div className="text-caption font-semibold text-ink-3 uppercase tracking-wider px-2 mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <ShieldCheck className="w-3 h-3 text-blue-500" />
                   <span>安全箱资产</span>
                 </span>
                 <button
                   onClick={() => handleNavigate('vault')}
-                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-caption text-blue-600 dark:text-blue-400 hover:underline"
                 >
                   查看全部
                 </button>
@@ -247,25 +246,25 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
                   <button
                     key={idx}
                     onClick={() => handleNavigate('vault')}
-                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-left transition-colors group border border-transparent hover:border-zinc-200/60 dark:hover:border-zinc-700/60"
+                    className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-surface-2 text-left transition-colors group border border-transparent hover:border-line/60"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                       <div className="truncate">
                         {item.type === 'password' ? (
                           <>
-                            <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{item.item.title}</p>
-                            <p className="text-[10px] text-zinc-400 truncate">账号: {item.item.username}</p>
+                            <p className="text-xs font-medium text-ink truncate">{item.item.title}</p>
+                            <p className="text-caption text-ink-3 truncate">账号: {item.item.username}</p>
                           </>
                         ) : (
                           <>
-                            <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate">{item.item.issuer} 2FA</p>
-                            <p className="text-[10px] text-zinc-400 truncate">{item.item.account}</p>
+                            <p className="text-xs font-medium text-ink truncate">{item.item.issuer} 2FA</p>
+                            <p className="text-caption text-ink-3 truncate">{item.item.account}</p>
                           </>
                         )}
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0 ml-2 font-mono">
+                    <span className="text-caption px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0 ml-2 font-mono">
                       {item.type === 'password' ? '密码' : '2FA 令牌'}
                     </span>
                   </button>
@@ -275,18 +274,19 @@ export const QuickSearchPalette: React.FC<QuickSearchPaletteProps> = ({
           )}
 
           {q && filteredPlans.length === 0 && filteredNotes.length === 0 && filteredVault.length === 0 && (
-            <div className="py-12 text-center text-zinc-400 dark:text-zinc-500 text-xs">
-              🐾 没有匹配到 “{query}” 的相关内容喵~
+            <div className="py-12 text-center text-ink-3 text-xs">
+              没有匹配到 “{query}” 的相关内容
             </div>
           )}
         </div>
 
         {/* Footer info */}
-        <div className="px-4 py-2.5 bg-zinc-50 dark:bg-zinc-900/60 border-t border-zinc-200/60 dark:border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-400">
+        <div className="px-4 py-2.5 bg-surface-2/60 border-t border-line/70 flex items-center justify-between text-caption text-ink-3">
           <span className="flex items-center gap-1.5">
-            <span>🐱 猫步可爱流体双模工作台</span>
+            <span>猫步可爱 · 全站搜索</span>
           </span>
-          <span>按 ESC 关闭</span>
+          <span className="hidden sm:inline">按 ESC 关闭</span>
+          <span className="sm:hidden">点击空白处关闭</span>
         </div>
       </div>
     </div>

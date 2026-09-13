@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // Custom Vite plugin to handle Microsoft OAuth2 & Graph API proxying with zero CORS issues
 function microsoftProxyPlugin() {
@@ -220,7 +221,23 @@ function microsoftProxyPlugin() {
 }
 
 export default defineConfig({
-  plugins: [react(), microsoftProxyPlugin()],
+  plugins: [
+    react(),
+    microsoftProxyPlugin(),
+    // PWA: precache built assets for offline web usage. The app's own
+    // manifest (public/manifest.json) is kept — no generated duplicate.
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'script-defer',
+      manifest: false,
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
+    }),
+  ],
   server: {
     port: 5173,
     host: true,
@@ -229,10 +246,17 @@ export default defineConfig({
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-tools': ['canvas-confetti', 'jsqr'],
+        // Function form: the object form silently hoisted react-dom into
+        // the entry chunk. Split by package so first load parses in parallel
+        // and vendors cache independently of app code.
+        manualChunks(rawId) {
+          const id = rawId.replace(/\\/g, '/');
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          if (id.includes('canvas-confetti') || id.includes('jsqr')) return 'vendor-tools';
+          if (id.includes('/motion/') || id.includes('framer-motion') || id.includes('/motion')) return 'vendor-motion';
+          if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
+          return 'vendor-misc';
         },
       },
     },

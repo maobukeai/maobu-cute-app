@@ -192,6 +192,29 @@ export interface WebDAVBackupItem {
   url: string;
 }
 
+export interface AppUpdateAsset {
+  name: string;
+  size: number;
+  downloadUrl: string;
+  contentType?: string;
+}
+
+export interface AppUpdateInfo {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+  downloadUrl?: string;
+  apkAsset?: AppUpdateAsset;
+  htmlUrl?: string;
+}
+
+export interface AppUpdateCheckResult {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latest?: AppUpdateInfo;
+  error?: string;
+}
+
 export interface AppSettings {
   themeMode: ThemeMode;
   accentColor: AccentColor;
@@ -201,6 +224,9 @@ export interface AppSettings {
   hasMasterPassword: boolean;
   activeTab: AppTab;
   webdav?: WebDAVConfig;
+  autoCheckUpdate?: boolean;
+  lastUpdateCheckTime?: number;
+  dismissedVersion?: string;
 }
 
 export interface FullAppBackup {

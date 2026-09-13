@@ -132,7 +132,8 @@ export const SwipeableItem: React.FC<SwipeableItemProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-hidden rounded-2xl select-none ${className}`}
+      className={`relative overflow-hidden rounded-2xl select-none touch-pan-y ${className}`}
+      style={{ touchAction: 'pan-y' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -188,7 +189,7 @@ export const SwipeableItem: React.FC<SwipeableItemProps> = ({
 
       {/* Foreground Content */}
       <div
-        className="relative z-10 bg-white dark:bg-[#18181E] transition-transform duration-200 ease-out"
+        className="relative z-10 bg-surface transition-transform duration-200 ease-out"
         style={{
           transform: `translateX(${offsetX}px)`,
           transitionDuration: isDraggingRef.current ? '0ms' : '220ms',

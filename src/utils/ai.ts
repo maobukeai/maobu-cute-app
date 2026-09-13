@@ -5,22 +5,22 @@ import { AIProvider, AISkill, AIImageGeneration } from '../types';
 export const BUILTIN_SKILLS: AISkill[] = [
   {
     id: 'skill_cat',
-    name: '猫步暖心伴侣 (Maobu Cute)',
-    icon: '🐱',
-    description: '软萌体贴的猫咪伴侣，善解人意，随时倾听并送上暖心治愈与生活规划',
-    systemPrompt: '你是【猫步可爱】APP的专属萌猫伴侣“猫步喵”。你的语气软萌、轻快、温柔且充满同理心，经常用“(ฅ^•ﻌ•^ฅ)”等可爱表情和“喵~”的语气助词。你会认真倾听主人的心事，鼓励主人做计划和记笔记，陪伴主人度过美好的一天。',
+    name: '猫步智能助理',
+    icon: '',
+    description: '高效有条理的个人助手，专注于目标拆解、文案润色、逻辑梳理与日常任务规划',
+    systemPrompt: '你是猫步智能个人助理。你回答清晰、专业、条理分明，善于帮助用户梳理逻辑、拆解行动计划、撰写文案与答疑解惑。回答保持简洁精准，条理清晰。',
     isBuiltin: true,
-    tags: ['官方自研', '治愈陪伴', '日常助理'],
+    tags: ['官方自研', '高效助理', '日常规划'],
     author: 'Maobu Team',
     repo: 'antigravity/maobu-cute-skills',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '12.8k ★',
+    stars: '12.8k',
     license: 'MIT',
   },
   {
     id: 'skill_coder',
     name: '全栈架构导师与代码审查官 (Code Reviewer)',
-    icon: '💻',
+    icon: '',
     description: '资深全栈架构师，擅长 Clean Architecture、防御性工程、代码审查与性能调优',
     systemPrompt: 'You are a Senior Fullstack Software Architect and Expert Code Reviewer from GitHub open-source community. When given code or architecture problems: 1. Identify subtle bugs, concurrency issues, edge cases and memory leaks. 2. Provide production-ready, clean, well-typed TypeScript / React / Node.js code. 3. Follow defensive engineering and minimal blast radius principles. 4. Explain trade-offs clearly.',
     isBuiltin: true,
@@ -28,13 +28,13 @@ export const BUILTIN_SKILLS: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
   {
     id: 'skill_fabric_wisdom',
     name: '核心洞察与智慧提炼官 (extract_wisdom)',
-    icon: '🧠',
+    icon: '',
     description: '来自 Daniel Miessler 的开源 Fabric 框架，深度提炼文章/音视频中的核心思想、金句与行动指南',
     systemPrompt: 'You are an expert at extracting wisdom, primary insights, and actionable lessons from raw text, articles, or transcripts. Structure your response into: 1. ONE-SENTENCE SUMMARY. 2. MAIN POINTS (key ideas). 3. ACTIONABLE TAKEAWAYS (concrete things to do). 4. MEMORABLE QUOTES.',
     isBuiltin: true,
@@ -42,13 +42,13 @@ export const BUILTIN_SKILLS: AISkill[] = [
     author: 'Daniel Miessler',
     repo: 'danielmiessler/fabric',
     repoUrl: 'https://github.com/danielmiessler/fabric',
-    stars: '26.8k ★',
+    stars: '26.8k',
     license: 'MIT',
   },
   {
     id: 'skill_translator',
     name: '高级同传级双语润色官 (English Improver)',
-    icon: '🌍',
+    icon: '',
     description: '经典 GitHub 118k Star 提示词：中英双语信达雅互译，学术论文与地道商务英语高级词汇润色',
     systemPrompt: 'I want you to act as an English translator, spelling corrector and improver. I will speak to you in Chinese or English. You will detect the language, translate it and answer in the corrected and improved version of my text, in high-level, elegant, natural English and Chinese. Replace simplified A0-level words with more beautiful and literary vocabulary, keeping the exact meaning.',
     isBuiltin: true,
@@ -56,13 +56,13 @@ export const BUILTIN_SKILLS: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
   {
     id: 'skill_claude_refactor',
     name: '代码重构与性能调优大师 (Anthropic Official)',
-    icon: '⚡',
+    icon: '',
     description: 'Anthropic Claude 官方开源 Prompt 库：严格按照现代最佳实践进行无损重构与性能调优',
     systemPrompt: 'You are an expert software developer specializing in code refactoring, performance optimization, and architectural cleanliness from the official Anthropic prompt library. You analyze the provided code, identify bottlenecks and anti-patterns, and rewrite the code to be cleaner, faster, and more maintainable while strictly preserving all existing functionality.',
     isBuiltin: true,
@@ -70,13 +70,13 @@ export const BUILTIN_SKILLS: AISkill[] = [
     author: 'Anthropic',
     repo: 'anthropics/prompt-library',
     repoUrl: 'https://github.com/anthropics',
-    stars: '19.4k ★',
+    stars: '19.4k',
     license: 'MIT',
   },
   {
     id: 'skill_image_prompter',
     name: 'Midjourney 绝美生图提示词架构师',
-    icon: '🖼️',
+    icon: '',
     description: '将简短画面想法扩充为摄影级 Midjourney / DALL-E 3 绝美提示词与相机参数',
     systemPrompt: 'You are an expert Midjourney and DALL-E prompt engineer. Expand any simple idea into a visually stunning, photorealistic prompt with precise composition, camera lens parameters (e.g., 85mm f/1.4), cinematic lighting, textures, volumetric rays, color palettes, and aspect ratios like --ar 16:9 --v 6.0.',
     isBuiltin: true,
@@ -84,7 +84,7 @@ export const BUILTIN_SKILLS: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
 ];
@@ -94,7 +94,7 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
   {
     id: 'gh_linux_terminal',
     name: 'Linux 终端模拟器 (Linux Terminal)',
-    icon: '🐧',
+    icon: '',
     description: '来自 f/awesome-chatgpt-prompts：将 AI 转化为精准的 Linux 终端环境，接收 Bash 命令并返回终端仿真输出',
     systemPrompt: 'I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. when I need to tell you something in english, I will do so by putting text inside curly brackets {like this}.',
     isBuiltin: false,
@@ -102,13 +102,13 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
   {
     id: 'gh_cyber_security',
     name: '网络安全审计与白帽攻防 (Cybersecurity Auditor)',
-    icon: '🛡️',
+    icon: '',
     description: '来自 f/awesome-chatgpt-prompts：专业漏洞排查、OWASP Top 10 防护、威胁建模与安全加固',
     systemPrompt: 'I want you to act as a cybersecurity specialist. I will provide some specific information about how data is stored and shared, and it will be your job to identify potential vulnerabilities, assess attack vectors, and propose hardened defense mechanisms according to OWASP Top 10 guidelines.',
     isBuiltin: false,
@@ -116,13 +116,13 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
   {
     id: 'gh_fabric_explain_code',
     name: '通俗代码与复杂算法讲师 (explain_code)',
-    icon: '💡',
+    icon: '',
     description: '来自 Daniel Miessler 的开源 Fabric 框架：以极其通俗、生动的语言拆解任何复杂代码与深奥算法',
     systemPrompt: 'You are an expert software developer and teacher specializing in explaining code to developers of all levels. When given a snippet of code or an algorithm: 1. Give an intuitive high-level analogy. 2. Walk through the key functions step-by-step. 3. Highlight potential edge cases or pitfalls.',
     isBuiltin: false,
@@ -130,13 +130,13 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'Daniel Miessler',
     repo: 'danielmiessler/fabric',
     repoUrl: 'https://github.com/danielmiessler/fabric',
-    stars: '26.8k ★',
+    stars: '26.8k',
     license: 'MIT',
   },
   {
     id: 'gh_brex_json_extractor',
     name: '严格 JSON 数据抽取引擎 (Strict JSON Extractor)',
-    icon: '📦',
+    icon: '',
     description: '来自 Brex 生产级提示词工程库：从非结构化长文本中零幻觉精准抽取符合 Schema 的标准 JSON',
     systemPrompt: 'You are an enterprise-grade data extraction engine. You extract structured information from messy, unstructured text and output ONLY pure valid JSON conforming strictly to the requested schema. No conversational filler, no markdown fences unless requested.',
     isBuiltin: false,
@@ -144,13 +144,13 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'Brex Engineering',
     repo: 'brexhq/prompt-engineering',
     repoUrl: 'https://github.com/brexhq/prompt-engineering',
-    stars: '8.4k ★',
+    stars: '8.4k',
     license: 'Apache-2.0',
   },
   {
     id: 'gh_interview_coach',
     name: '硅谷技术与求职面试官 (Mock Interviewer)',
-    icon: '👔',
+    icon: '',
     description: '来自 f/awesome-chatgpt-prompts：模拟顶级科技公司面试官，多轮追问系统设计、算法与行为面试 (BQ)',
     systemPrompt: 'I want you to act as an interviewer. I will be the candidate and you will ask me the interview questions for the position. I want you to only reply as the interviewer. Do not write all the conversation at once. Ask me questions one by one like in a real interview, wait for my answers, and provide constructive feedback after each answer.',
     isBuiltin: false,
@@ -158,13 +158,13 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'f (Fatih Kadir Akın)',
     repo: 'f/awesome-chatgpt-prompts',
     repoUrl: 'https://github.com/f/awesome-chatgpt-prompts',
-    stars: '118.5k ★',
+    stars: '118.5k',
     license: 'CC0-1.0',
   },
   {
     id: 'gh_deepseek_harness',
     name: 'DeepSeek Harness 防御性工程架构师',
-    icon: '⚓',
+    icon: '',
     description: '严格遵循官方 DeepSeek Harness 工程准则：正交上报、双向契约规范化、异步状态隔离与资源彻底停稳',
     systemPrompt: 'You are a Senior Principal Engineer following DeepSeek Harness Global Invariants. You enforce: 1. Orthogonal Reporting (separate facts like timedOut, signal, exitCode). 2. Contract Normalization. 3. Async/Sync State Isolation (no guessing with whenIdle). 4. Complete Teardown (no orphan processes). 5. Unlink Safety on Windows Junctions.',
     isBuiltin: false,
@@ -172,7 +172,7 @@ export const GITHUB_HOT_SKILLS_CATALOG: AISkill[] = [
     author: 'DeepSeek AI & Harness Community',
     repo: 'deepseek-ai/deepseek-harness',
     repoUrl: 'https://github.com/deepseek-ai/deepseek-harness',
-    stars: '14.2k ★',
+    stars: '14.2k',
     license: 'MIT',
   },
 ];
@@ -198,7 +198,9 @@ export async function fetchSkillFromGitHubUrl(rawUrl: string): Promise<Partial<A
     try {
       const res = await fetch(target);
       if (res.ok) return await res.text();
-    } catch {}
+    } catch {
+      /* fall through to dev proxy */
+    }
 
     // Fallback to Vite dev proxy if running on localhost web
     const proxyRes = await fetch('/api/ai-proxy', {
@@ -210,10 +212,10 @@ export async function fetchSkillFromGitHubUrl(rawUrl: string): Promise<Partial<A
     throw new Error(`无法获取技能内容 (${proxyRes.status})`);
   }
 
-  let text = '';
+  let text: string;
   try {
     text = await fetchText(fetchUrl);
-  } catch (err) {
+  } catch {
     // If fetching main branch failed and URL ended with /main/README.md, fallback to /master/README.md
     if (fetchUrl.endsWith('/main/README.md')) {
       const masterUrl = fetchUrl.replace('/main/README.md', '/master/README.md');
@@ -275,14 +277,14 @@ export async function fetchSkillFromGitHubUrl(rawUrl: string): Promise<Partial<A
   return {
     id: 'gh_' + Date.now(),
     name: title.slice(0, 30),
-    icon: '🐙',
+    icon: '',
     description: description.slice(0, 100),
     systemPrompt: systemPrompt.trim(),
     tags: ['GitHub导入', repoName],
     repo: repoName,
     repoUrl: rawUrl.startsWith('http') ? rawUrl : `https://github.com/${repoName}`,
     author: repoName.split('/')[0] || 'GitHub',
-    stars: 'GitHub ★',
+    stars: 'GitHub',
     license: 'Open Source',
   };
 }
@@ -305,14 +307,8 @@ export const DEFAULT_CUSTOM_PROVIDER: AIProvider = {
   name: '自定义兼容接口 (Custom Endpoint)',
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
-  defaultModel: 'deepseek-chat',
-  availableModels: [
-    'deepseek-chat',
-    'deepseek-reasoner',
-    'gpt-4o',
-    'gpt-4o-mini',
-    'claude-3-5-sonnet',
-  ],
+  defaultModel: '',
+  availableModels: [],
   isActive: true,
 };
 
@@ -321,11 +317,8 @@ export const SECOND_CUSTOM_PROVIDER: AIProvider = {
   name: 'DeepSeek 官方开放平台',
   baseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
-  defaultModel: 'deepseek-chat',
-  availableModels: [
-    'deepseek-chat',
-    'deepseek-reasoner',
-  ],
+  defaultModel: '',
+  availableModels: [],
   isActive: false,
 };
 
@@ -333,6 +326,36 @@ export const PRESET_PROVIDERS: AIProvider[] = [
   DEFAULT_CUSTOM_PROVIDER,
   SECOND_CUSTOM_PROVIDER,
 ];
+
+export function getActiveAIProvider(provider?: AIProvider): AIProvider {
+  if (provider && provider.apiKey?.trim()) return provider;
+  if (typeof window !== 'undefined') {
+    try {
+      const windowProviders = (window as any).__MAOBU_PROVIDERS__;
+      if (Array.isArray(windowProviders) && windowProviders.length > 0) {
+        const found = windowProviders.find((p: AIProvider) => p.isActive && p.apiKey?.trim()) ||
+                      windowProviders.find((p: AIProvider) => p.apiKey?.trim()) ||
+                      windowProviders.find((p: AIProvider) => p.isActive) ||
+                      windowProviders[0];
+        if (found) return found;
+      }
+      const raw = localStorage.getItem('maobu_ai_providers');
+      if (raw) {
+        const stored = JSON.parse(raw);
+        if (Array.isArray(stored) && stored.length > 0) {
+          const active = stored.find((p: AIProvider) => p.isActive && p.apiKey?.trim()) ||
+                         stored.find((p: AIProvider) => p.apiKey?.trim()) ||
+                         stored.find((p: AIProvider) => p.isActive) ||
+                         stored[0];
+          if (active) return active;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return provider || DEFAULT_CUSTOM_PROVIDER;
+}
 
 async function safeAiFetch(
   url: string,
@@ -418,17 +441,20 @@ export async function fetchModelsFromProvider(baseUrl: string, apiKey: string): 
 // Test Connectivity & Latency
 export async function testProviderLatency(provider: AIProvider): Promise<{ latency: number; ok: boolean; message: string }> {
   const startTime = Date.now();
-  const url = `${provider.baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const cleanBase = provider.baseUrl.replace(/\/$/, '');
+  const hasModel = Boolean(provider.defaultModel?.trim());
+  const url = hasModel ? `${cleanBase}/chat/completions` : `${cleanBase}/models`;
   const headers = buildAuthHeaders(provider.apiKey);
 
   try {
-    const payload = {
-      model: provider.defaultModel || 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 5,
-    };
+    const response = hasModel
+      ? await safeAiFetch(url, 'POST', headers, {
+          model: provider.defaultModel,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 5,
+        })
+      : await safeAiFetch(url, 'GET', headers);
 
-    const response = await safeAiFetch(url, 'POST', headers, payload);
     const latency = Date.now() - startTime;
     if (response.ok) {
       return { latency, ok: true, message: `测通成功！延迟 ${latency}ms` };
@@ -491,8 +517,13 @@ export async function streamChatCompletion({
   }
   fullMessages.push(...messages);
 
+  const targetModel = (model || provider.defaultModel || '').trim();
+  if (!targetModel) {
+    throw new Error('尚未配置 AI 模型，请前往「模型配置」获取或输入模型名称后再试');
+  }
+
   const payload = {
-    model: model || provider.defaultModel,
+    model: targetModel,
     messages: fullMessages,
     stream: true,
     temperature: 0.7,
@@ -629,7 +660,7 @@ export async function generateAIImage({
 
   // If provider does not accept response_format: 'b64_json' (some third-party gateways), retry without it
   if (!response.ok && response.status === 400) {
-    const { response_format, ...standardPayload } = payload;
+    const { response_format: _dropped, ...standardPayload } = payload;
     const retryRes = await safeAiFetch(url, 'POST', headers, standardPayload);
     if (retryRes.ok) {
       response = retryRes;
@@ -721,15 +752,17 @@ export async function generateAIPlan({
   }
 
   // Get active or first configured provider
-  const allProviders = typeof window !== 'undefined' ? (window as any).__MAOBU_PROVIDERS__ || [] : [];
-  const activeProvider = provider || allProviders.find((p: AIProvider) => p.isActive) || DEFAULT_CUSTOM_PROVIDER;
+  const activeProvider = getActiveAIProvider(provider);
 
   if (!activeProvider || !activeProvider.apiKey || !activeProvider.apiKey.trim()) {
     throw new Error('未配置有效的大模型 API Key。请前往「AI 伴侣」->「模型配置」填写或配置有效 API 密钥，让真实大模型为你规划。');
   }
 
   const startTime = Date.now();
-  const selectedModel = model || activeProvider.defaultModel || 'deepseek-v4-flash';
+  const selectedModel = (model || activeProvider.defaultModel || '').trim();
+  if (!selectedModel) {
+    throw new Error('未配置可用大模型，请先前往「AI 助手」->「模型配置」获取或输入你的模型名称。');
+  }
 
   const systemPrompt = `你是一位高阶敏捷项目规划与任务拆解专家。
 请根据用户的真实目标：“${cleanPrompt}”，进行深度思考与精细拆解，生成一份切实可行、逻辑严密、可直接执行的计划方案。
@@ -773,7 +806,7 @@ export async function generateAIPlan({
     reasoningContent = streamRes.reasoningContent || reasoningContent;
   } catch (err: any) {
     const friendly = formatFriendlyAIError(err.message || String(err));
-    throw new Error(`大模型 [${selectedModel}] 规划失败: ${friendly}`);
+    throw new Error(`大模型 [${selectedModel}] 规划失败: ${friendly}`, { cause: err });
   }
 
   // Parse JSON strictly from LLM output
@@ -790,8 +823,8 @@ export async function generateAIPlan({
     // If model returned bullet points text rather than strict JSON, parse lines directly from LLM
     const lines = rawContent.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const subtasks = lines
-      .filter(l => /^(\d+\.|\-|\*|•|【步骤)/.test(l))
-      .map(l => l.replace(/^(\d+\.|\-|\*|•|【步骤\d+】)\s*/, '').trim())
+      .filter(l => /^(\d+\.|-|\*|•|【步骤)/.test(l))
+      .map(l => l.replace(/^(\d+\.|-|\*|•|【步骤\d+】)\s*/, '').trim())
       .filter(l => l.length > 0);
 
     return {
@@ -864,24 +897,16 @@ export async function generateAINote({
   }
 
   // Get active provider from parameter or local storage
-  let activeProvider = provider;
-  if (!activeProvider && typeof window !== 'undefined') {
-    try {
-      const stored = JSON.parse(localStorage.getItem('maobu_ai_providers') || '[]');
-      activeProvider = stored.find((p: any) => p.isActive) || stored[0];
-    } catch {
-      // ignore
-    }
-  }
-  if (!activeProvider) {
-    activeProvider = DEFAULT_CUSTOM_PROVIDER;
-  }
+  const activeProvider = getActiveAIProvider(provider);
 
   if (!activeProvider || !activeProvider.apiKey || !activeProvider.apiKey.trim()) {
     throw new Error('未配置有效的大模型 API Key。请前往「AI 伴侣」->「模型配置」填写或配置有效 API 密钥。');
   }
 
-  const selectedModel = model || activeProvider.defaultModel || 'deepseek-v4-flash';
+  const selectedModel = (model || activeProvider.defaultModel || '').trim();
+  if (!selectedModel) {
+    throw new Error('未配置可用大模型，请先前往「AI 助手」->「模型配置」获取或输入你的模型名称。');
+  }
   const styleDesc = {
     guide: '干货结构化指南（使用清晰章节、列表、关键要点与实践建议）',
     essay: '优美深邃随笔感悟（文笔温润细腻，富有思考深度）',
@@ -964,6 +989,6 @@ export async function generateAINote({
     }
   } catch (err: any) {
     const friendly = formatFriendlyAIError(err.message || String(err));
-    throw new Error(`大模型 [${selectedModel}] 笔记生成失败: ${friendly}`);
+    throw new Error(`大模型 [${selectedModel}] 笔记生成失败: ${friendly}`, { cause: err });
   }
 }

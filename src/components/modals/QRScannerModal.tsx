@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera,
   Upload,
@@ -10,9 +10,8 @@ import {
   AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
-import { decodeQRFromCanvas, decodeQRFromImageFile, parseTwoFactorQR, ParsedTwoFactor } from '../../utils/qr';
+import { decodeQRFromCanvas, parseTwoFactorQR, ParsedTwoFactor } from '../../utils/qr';
 import { sound } from '../../utils/sound';
-import confetti from 'canvas-confetti';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -41,7 +40,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Stop camera stream safely
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (animationFrameId.current) {
       cancelAnimationFrame(animationFrameId.current);
       animationFrameId.current = null;
@@ -50,10 +49,30 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
-  };
+    setIsTorchOn(false);
+  }, []);
+
+  // Handle successful QR code decode
+  const handleSuccessfulDecode = useCallback(async (result: ParsedTwoFactor) => {
+    stopCamera();
+    setScanError(null);
+    sound.playSuccess();
+    try {
+      const confetti = (await import('canvas-confetti')).default;
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.6 },
+      });
+    } catch {
+      /* decoration only */
+    }
+
+    setScannedResult(result);
+  }, [stopCamera]);
 
   // Frame tick loop
-  const tick = () => {
+  const tick = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || scannedResult) return;
 
     if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
@@ -78,10 +97,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     }
 
     animationFrameId.current = requestAnimationFrame(tick);
-  };
+  }, [handleSuccessfulDecode, scannedResult]);
 
   // Start camera stream
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
     setScanError(null);
@@ -127,23 +146,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       }
       setScanMode('upload');
     }
-  };
-
-  // Handle successful QR code decode
-  const handleSuccessfulDecode = (result: ParsedTwoFactor) => {
-    stopCamera();
-    setScanError(null);
-    sound.playSuccess();
-    try {
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
-    } catch {}
-
-    setScannedResult(result);
-  };
+  }, [facingMode, stopCamera, tick]);
 
   // Toggle Torch
   const toggleTorch = async () => {
@@ -156,93 +159,113 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           advanced: [{ torch: next }],
         });
         setIsTorchOn(next);
-        sound.playTap();
       } catch (e) {
-        console.error('Toggle torch failed:', e);
+        console.warn('Torch toggle failed:', e);
       }
     }
   };
 
-  // Switch between front and back cameras
-  const toggleCameraFacing = () => {
+  // Switch Facing Mode (User vs Environment)
+  const toggleFacingMode = () => {
     sound.playTap();
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
+  const toggleCameraFacing = toggleFacingMode;
 
-  // Handle File Upload from Gallery / Screenshots
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manual File Upload handler
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsProcessingImage(true);
-    setScanError(null);
-    sound.playTap();
-    try {
-      const qrText = await decodeQRFromImageFile(file);
-      if (qrText) {
-        const parsed = parseTwoFactorQR(qrText);
-        if (parsed && parsed.secret) {
-          handleSuccessfulDecode(parsed);
-          return;
-        } else {
-          setScanError('未能从该二维码识别出合法的 2FA 令牌格式（需包含 secret 密钥）');
-        }
-      } else {
-        setScanError('未在图片中检测到清晰的二维码，请确保二维码无遮挡或尝试截取特写');
-      }
-    } catch (err: any) {
-      setScanError('解析图片失败: ' + err.message);
-    } finally {
-      setIsProcessingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    processImageFile(file);
+    e.target.value = '';
   };
 
-  // Handle Clipboard Scan (Image or Text)
-  const handleClipboardScan = async () => {
-    sound.playTap();
+  const processImageFile = (file: File) => {
     setIsProcessingImage(true);
     setScanError(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            setScanError('无法初始化图片画布渲染器');
+            return;
+          }
+          ctx.drawImage(img, 0, 0);
+          const qrText = decodeQRFromCanvas(canvas);
+
+          if (!qrText) {
+            setScanError('未能从该图片中识别出清晰的二维码，请确保图片完整或尝试截屏放大');
+            sound.playTap();
+            return;
+          }
+
+          const parsed = parseTwoFactorQR(qrText);
+          if (!parsed || !parsed.secret) {
+            setScanError(`识别到内容，但不是合法的 2FA (TOTP) 格式: ${qrText.slice(0, 40)}...`);
+            sound.playTap();
+            return;
+          }
+
+          handleSuccessfulDecode(parsed);
+        } catch (err: any) {
+          setScanError('二维码解析失败: ' + err.message);
+        } finally {
+          setIsProcessingImage(false);
+        }
+      };
+      img.onerror = () => {
+        setScanError('加载图片失败，请检查文件格式');
+        setIsProcessingImage(false);
+      };
+      img.src = evt.target?.result as string;
+    };
+    reader.onerror = () => {
+      setScanError('读取图片文件失败');
+      setIsProcessingImage(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Read clipboard image directly
+  const handleClipboardScan = async () => {
+    sound.playTap();
+    setScanError(null);
+    setIsProcessingImage(true);
+
     try {
-      // 1. Try reading clipboard text first (fast, standard and doesn't prompt for permission)
       if (navigator.clipboard && navigator.clipboard.readText) {
         try {
-          const text = await Promise.race([
-            navigator.clipboard.readText(),
-            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1200)),
-          ]);
-          if (text) {
-            const parsed = parseTwoFactorQR(text);
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim().startsWith('otpauth://')) {
+            const parsed = parseTwoFactorQR(text.trim());
             if (parsed && parsed.secret) {
               handleSuccessfulDecode(parsed);
               return;
             }
           }
-        } catch (e) {
-          console.warn('Clipboard readText failed or timed out:', e);
+        } catch {
+          // ignore text read failure
         }
       }
 
-      // 2. Try reading clipboard items (for copied screenshot images)
       if (navigator.clipboard && navigator.clipboard.read) {
         try {
-          const items = await Promise.race([
-            navigator.clipboard.read(),
-            new Promise<ClipboardItems>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000)),
-          ]);
+          const items = await navigator.clipboard.read();
           for (const item of items) {
-            for (const type of item.types) {
-              if (type.startsWith('image/')) {
-                const blob = await item.getType(type);
-                const qrText = await decodeQRFromImageFile(blob);
-                if (qrText) {
-                  const parsed = parseTwoFactorQR(qrText);
-                  if (parsed && parsed.secret) {
-                    handleSuccessfulDecode(parsed);
-                    return;
-                  }
-                }
-              }
+            const imageType = item.types.find((t) => t.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              const file = new File([blob], 'clipboard_image.png', { type: imageType });
+              processImageFile(file);
+              return;
             }
           }
         } catch (e) {
@@ -268,7 +291,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     return () => {
       stopCamera();
     };
-  }, [isOpen, scanMode, facingMode, scannedResult]);
+  }, [isOpen, scanMode, facingMode, scannedResult, startCamera, stopCamera]);
 
   if (!isOpen) return null;
 
@@ -283,18 +306,18 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
       }}
       className="fixed inset-0 bg-black/75 backdrop-blur-md z-[70] flex items-center justify-center p-3 sm:p-4 select-none"
     >
-      <div className="w-full max-w-md bg-white dark:bg-[#1C1C1E] rounded-3xl shadow-ios-modal border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col animate-scale-in">
+      <div className="w-full max-w-md bg-white dark:bg-surface-2 rounded-3xl shadow-ios-modal border border-line dark:border-line overflow-hidden flex flex-col animate-scale-in">
         {/* Header */}
-        <div className="p-3.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+        <div className="p-3.5 border-b border-line dark:border-line flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="p-1.5 rounded-xl bg-gradient-to-tr from-[#07C160] to-emerald-400 text-white shadow-xs">
+            <div className="p-1.5 rounded-xl bg-accent text-white shadow-xs">
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+              <h3 className="text-sm font-bold text-ink dark:text-zinc-100">
                 扫码添加 2FA 双重身份验证
               </h3>
-              <p className="text-[10px] text-zinc-400">
+              <p className="text-caption text-ink-3">
                 支持摄像头实时扫描、本地相册截图识别与剪贴板识别
               </p>
             </div>
@@ -307,7 +330,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               stopCamera();
               onClose();
             }}
-            className="p-1.5 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition"
+            className="p-1.5 text-ink-3 hover:bg-surface-2 dark:hover:bg-surface-2 rounded-full transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -325,8 +348,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               }}
               className={`flex-1 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition ${
                 scanMode === 'camera'
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                  ? 'bg-accent text-white shadow-xs'
+                  : 'bg-surface-2 text-ink-2 hover:text-ink'
               }`}
             >
               <Camera className="w-3.5 h-3.5" />
@@ -343,8 +366,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               }}
               className={`flex-1 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition ${
                 scanMode === 'upload'
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-xs'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                  ? 'bg-accent text-white shadow-xs'
+                  : 'bg-surface-2 text-ink-2 hover:text-ink'
               }`}
             >
               <Upload className="w-3.5 h-3.5" />
@@ -371,18 +394,18 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                   <span className="text-xs font-bold">成功识别 2FA 动态令牌！</span>
                 </div>
 
-                <div className="space-y-1.5 text-xs bg-white/80 dark:bg-zinc-900/80 p-3 rounded-xl border border-green-100 dark:border-green-900/40">
+                <div className="space-y-1.5 text-xs bg-white/80 dark:bg-surface-2/80 p-3 rounded-xl border border-green-100 dark:border-green-900/40">
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">发行平台 (Issuer):</span>
-                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{scannedResult.issuer}</span>
+                    <span className="text-ink-3">发行平台 (Issuer):</span>
+                    <span className="font-bold text-ink">{scannedResult.issuer}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">账号标识 (Account):</span>
-                    <span className="font-medium text-zinc-700 dark:text-zinc-300">{scannedResult.account}</span>
+                    <span className="text-ink-3">账号标识 (Account):</span>
+                    <span className="font-medium text-ink-2">{scannedResult.account}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-1 border-t border-zinc-100 dark:border-zinc-800">
-                    <span className="text-zinc-400">Base32 密钥:</span>
-                    <span className="font-mono text-[11px] text-green-600 dark:text-green-400 font-semibold truncate max-w-[180px]">
+                  <div className="flex justify-between items-center pt-1 border-t border-line">
+                    <span className="text-ink-3">Base32 密钥:</span>
+                    <span className="font-mono text-caption text-green-600 dark:text-green-400 font-semibold truncate max-w-[180px]">
                       {scannedResult.secret}
                     </span>
                   </div>
@@ -399,7 +422,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                     setScanError(null);
                     if (scanMode === 'camera') startCamera();
                   }}
-                  className="py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 text-xs font-semibold transition"
+                  className="py-2.5 rounded-xl bg-surface-2 hover:bg-surface-2/80 text-ink-2 text-xs font-semibold transition"
                 >
                   重新扫描
                 </button>
@@ -411,7 +434,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                     onScanSuccess(scannedResult);
                     onClose();
                   }}
-                  className="py-2.5 rounded-xl bg-[#07C160] hover:bg-[#06AD56] text-white text-xs font-bold shadow-md transition active:scale-95 flex items-center justify-center space-x-1"
+                  className="py-2.5 rounded-xl bg-accent text-white text-xs font-bold shadow-md transition active:scale-95 flex items-center justify-center space-x-1"
                 >
                   <Check className="w-4 h-4" />
                   <span>确认添加到保险箱</span>
@@ -421,7 +444,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           ) : scanMode === 'camera' ? (
             /* Live Camera Viewfinder */
             <div className="space-y-3">
-              <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-zinc-200 dark:border-zinc-800 shadow-inner">
+              <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-line dark:border-line shadow-inner">
                 {/* Live Video */}
                 <video
                   ref={videoRef}
@@ -435,13 +458,13 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                   <div className="relative w-56 h-56 border border-white/30 rounded-2xl overflow-hidden">
                     {/* Corner Brackets */}
-                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-[#07C160] rounded-tl-xl" />
-                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-[#07C160] rounded-tr-xl" />
-                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-[#07C160] rounded-bl-xl" />
-                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-[#07C160] rounded-br-xl" />
+                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-accent rounded-tl-xl" />
+                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-accent rounded-tr-xl" />
+                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-accent rounded-bl-xl" />
+                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-accent rounded-br-xl" />
 
                     {/* Laser Scan Line */}
-                    <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-[#07C160] to-transparent shadow-[0_0_8px_#07C160] animate-qr-scan" />
+                    <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_8px_var(--theme-accent)] animate-qr-scan" />
                   </div>
                 </div>
 
@@ -452,7 +475,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                       type="button"
                       onClick={toggleTorch}
                       className={`p-2 rounded-full backdrop-blur-md transition ${
-                        isTorchOn ? 'bg-amber-400 text-zinc-900' : 'bg-black/50 text-white hover:bg-black/70'
+                        isTorchOn ? 'bg-amber-400 text-ink' : 'bg-black/50 text-white hover:bg-black/70'
                       }`}
                       title={isTorchOn ? '关闭手电筒' : '打开手电筒'}
                     >
@@ -472,7 +495,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
                 {/* Hint badge */}
                 <div className="absolute bottom-3 left-0 right-0 text-center pointer-events-none">
-                  <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-[11px] text-white/90 font-medium">
+                  <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-caption text-white/90 font-medium">
                     将 2FA 二维码置于框内，自动识别
                   </span>
                 </div>
@@ -491,17 +514,17 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               {/* Drop / Pick Zone */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-[#07C160] dark:hover:border-[#07C160] bg-zinc-50 dark:bg-zinc-900/40 flex flex-col items-center justify-center p-6 text-center cursor-pointer transition group"
+                className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-line dark:border-line hover:border-accent dark:hover:border-accent bg-zinc-50 dark:bg-surface-2/40 flex flex-col items-center justify-center p-6 text-center cursor-pointer transition group"
               >
 
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-[#07C160] flex items-center justify-center mb-2 group-hover:scale-110 transition">
+                <div className="w-12 h-12 rounded-2xl bg-accent/10 text-accent flex items-center justify-center mb-2 group-hover:scale-110 transition">
                   <Upload className="w-6 h-6" />
                 </div>
 
-                <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                <p className="text-xs font-bold text-ink">
                   {isProcessingImage ? '正在解析二维码图片...' : '点击选择或拖放 2FA 二维码截图'}
                 </p>
-                <p className="text-[10px] text-zinc-400 mt-1">
+                <p className="text-caption text-ink-3 mt-1">
                   支持 JPG、PNG、WEBP、手机相册保存的照片或网页截屏
                 </p>
               </div>
@@ -511,7 +534,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 type="button"
                 onClick={handleClipboardScan}
                 disabled={isProcessingImage}
-                className="w-full py-2.5 px-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-800 dark:text-zinc-200 text-xs font-semibold flex items-center justify-center space-x-2 transition active:scale-95"
+                className="w-full py-2.5 px-3 rounded-xl bg-surface-2 hover:bg-surface-2/80 text-ink text-xs font-semibold flex items-center justify-center space-x-2 transition active:scale-95"
               >
                 <Clipboard className="w-4 h-4 text-blue-500" />
                 <span>从剪贴板自动识别截图或链接</span>

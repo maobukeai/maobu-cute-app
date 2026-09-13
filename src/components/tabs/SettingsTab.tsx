@@ -3,49 +3,58 @@ import { AppSettings, ThemeMode, AccentColor, DeviceFrame } from '../../types';
 import { db } from '../../utils/storage';
 import { sound } from '../../utils/sound';
 import { haptics } from '../../utils/haptics';
+import { ACCENTS, ACCENT_ORDER, applyAccent } from '../../utils/theme';
 import { WebDAVSyncCard } from '../WebDAVSyncCard';
+import { AboutSection } from '../AboutSection';
+import { Screen, SegmentedControl, Switch, Button, useToast } from '../ui';
 import {
-  Sun,
-  Moon,
-  Laptop,
-  Palette,
-  Volume2,
-  VolumeX,
-  Smartphone,
-  Download,
-  Upload,
   RotateCcw,
   Check,
   ShieldCheck,
-  HardDrive,
-  Copy,
+  ChevronRight,
 } from 'lucide-react';
 
 interface SettingsTabProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   onRefreshAllData: () => void;
+  onOpenAbout?: () => void;
+  hasUpdate?: boolean;
 }
 
-type SettingsSection = 'all' | 'appearance' | 'sync' | 'data';
+type SettingsSection = 'all' | 'appearance' | 'sync' | 'data' | 'about';
+
+/** Inset grouped list row (iOS settings style). */
+const Row: React.FC<{
+  label: string;
+  hint?: string;
+  right?: React.ReactNode;
+  onClick?: () => void;
+}> = ({ label, hint, right, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`flex items-center gap-3 px-4 py-3.5 ${onClick ? 'cursor-pointer active:bg-surface-2/60 transition' : ''} ${
+      hint ? 'items-start' : ''
+    }`}
+  >
+    <div className="flex-1 min-w-0">
+      <div className="text-sub font-medium text-ink">{label}</div>
+      {hint && <div className="text-caption text-ink-3 mt-0.5 leading-snug">{hint}</div>}
+    </div>
+    {right && <div className="shrink-0 flex items-center gap-2">{right}</div>}
+  </div>
+);
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   settings,
   onUpdateSettings,
   onRefreshAllData,
+  onOpenAbout: _onOpenAbout,
+  hasUpdate,
 }) => {
+  const toast = useToast();
   const [activeSection, setActiveSection] = useState<SettingsSection>('all');
-  const [copiedVersion, setCopiedVersion] = useState(false);
-  const [catMoodIndex, setCatMoodIndex] = useState(0);
 
-  const catMoods = [
-    { text: '元气满满 😸', quote: '今天也要踏着轻巧的猫步向前走！' },
-    { text: '离线守护 🛡️', quote: '所有数据纯本地存储，绝不泄露隐私。' },
-    { text: '灵感爆棚 🐾', quote: '每一个好点子都值得被快速记录。' },
-    { text: '温暖相伴 🍵', quote: '累了就摸摸猫猫，稍作休息吧。' },
-  ];
-
-  // Dynamic local storage metrics
   const storageMetrics = useMemo(() => {
     try {
       const plans = db.getPlans();
@@ -81,19 +90,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         estimatedKB: 12,
       };
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
-  // Handlers
+  // ── Handlers (persist + apply immediately) ───────────────────
+  const commit = (updated: AppSettings) => {
+    db.saveSettings(updated);
+    onUpdateSettings(updated);
+  };
+
   const handleThemeChange = (themeMode: ThemeMode) => {
-    haptics.selection();
-    sound.playTap();
-    onUpdateSettings({ ...settings, themeMode });
+    commit({ ...settings, themeMode });
+    if (themeMode === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (themeMode === 'light') {
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.toggle(
+        'dark',
+        window.matchMedia('(prefers-color-scheme: dark)').matches
+      );
+    }
   };
 
   const handleAccentChange = (accentColor: AccentColor) => {
     haptics.selection();
     sound.playTap();
-    onUpdateSettings({ ...settings, accentColor });
+    commit({ ...settings, accentColor });
+    applyAccent(accentColor);
   };
 
   const handleToggleSound = () => {
@@ -101,17 +125,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     sound.toggleSound(nextSound);
     haptics.selection();
     if (nextSound) sound.playTap();
-    onUpdateSettings({ ...settings, soundEnabled: nextSound });
+    commit({ ...settings, soundEnabled: nextSound });
   };
 
   const handleToggleHaptics = () => {
-    const nextHaptics = settings.hapticsEnabled === false ? true : false;
+    const nextHaptics = !(settings.hapticsEnabled !== false);
     haptics.setEnabled(nextHaptics);
-    if (nextHaptics) {
-      haptics.notificationSuccess();
-    }
+    if (nextHaptics) haptics.notificationSuccess();
     sound.playTap();
-    onUpdateSettings({ ...settings, hapticsEnabled: nextHaptics });
+    commit({ ...settings, hapticsEnabled: nextHaptics });
   };
 
   const handleTestSound = () => {
@@ -120,14 +142,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   const handleToggleDeviceFrame = () => {
-    haptics.selection();
-    sound.playTap();
     const nextFrame: DeviceFrame = settings.deviceFrame === 'mobile' ? 'desktop' : 'mobile';
-    onUpdateSettings({ ...settings, deviceFrame: nextFrame });
+    commit({ ...settings, deviceFrame: nextFrame });
   };
 
   const handleExportData = () => {
-    sound.playTap();
     try {
       const data = db.exportFullBackup();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -137,9 +156,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       a.download = `maobu_cute_backup_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      sound.playSuccess();
+      toast.success('备份已导出');
     } catch {
-      alert('导出备份失败');
+      toast.error('导出备份失败');
     }
   };
 
@@ -147,29 +166,31 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    sound.playTap();
     const reader = new FileReader();
     reader.onload = event => {
       try {
         const json = JSON.parse(event.target?.result as string);
         if (db.importFullBackup(json)) {
-          sound.playSuccess();
           onRefreshAllData();
-          alert('🎉 全量数据恢复成功！');
+          toast.success('全量数据恢复成功');
         } else {
-          alert('备份文件格式不兼容');
+          toast.error('备份文件格式不兼容');
         }
       } catch {
-        alert('解析备份文件失败');
+        toast.error('解析备份文件失败');
       }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  const handleResetData = () => {
-    sound.playTap();
-    const confirmed = window.confirm('⚠️ 警告：此操作将清空所有本地数据并恢复出厂设置！\n\n确认重置？');
+  const handleResetData = async () => {
+    const confirmed = await toast.confirm({
+      title: '清空所有数据？',
+      message: '此操作将清除全部本地数据并恢复出厂设置，且无法撤销。',
+      confirmText: '清空重置',
+      danger: true,
+    });
     if (confirmed) {
       db.clearAllData();
       sound.playSuccess();
@@ -177,279 +198,228 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
   };
 
-  const handlePetCat = () => {
-    sound.playCelebration();
-    setCatMoodIndex(prev => (prev + 1) % catMoods.length);
-  };
-
-  const copyVersion = () => {
-    navigator.clipboard.writeText('v0.1.1 Release (AES-256 / React 19)');
-    setCopiedVersion(true);
-    sound.playTap();
-    setTimeout(() => setCopiedVersion(false), 2000);
-  };
-
-  const accentColors: { id: AccentColor; label: string; bg: string }[] = [
-    { id: 'wechat', label: '微信绿', bg: 'bg-[#07C160]' },
-    { id: 'catpaw', label: '猫爪粉', bg: 'bg-pink-500' },
-    { id: 'apple', label: '苹果蓝', bg: 'bg-blue-500' },
-    { id: 'orange', label: '暖阳橙', bg: 'bg-amber-500' },
-    { id: 'purple', label: '梦幻紫', bg: 'bg-purple-500' },
-  ];
+  const showSection = (s: SettingsSection) => activeSection === 'all' || activeSection === s;
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden cat-bg-canvas">
-      <div
-        id="settings-scroll-container"
-        className="flex-1 overflow-y-auto px-2.5 sm:px-3.5 py-3 space-y-2.5 pb-24 max-w-4xl mx-auto w-full"
-      >
-        {/* 1. Ultra-Compact Micro-Hero Bar (44px) */}
-        <div className="glass-card px-2.5 py-1.5 rounded-xl flex items-center justify-between border border-white/80 dark:border-zinc-800/80 shadow-xs">
-          <div className="flex items-center space-x-2 min-w-0">
-            <button
-              onClick={handlePetCat}
-              className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-200 via-rose-200 to-pink-300 flex items-center justify-center text-base shadow-xs hover:scale-105 active:scale-95 transition shrink-0"
-              title="轻触摸摸猫猫 🐾"
-            >
-              🐱
-            </button>
+      <Screen className="max-w-2xl mx-auto w-full">
+        {/* Profile hero */}
+        <div className="bg-surface rounded-2xl border border-line shadow-elev-1 p-4 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-accent to-accent-hover text-white flex items-center justify-center font-bold text-base shadow-sm border border-line/40 shrink-0 select-none">
+              MB
+            </div>
             <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">猫步可爱</span>
-                <span className="text-[9px] px-1 py-0.2 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 rounded font-semibold">
-                  PRO
+              <div className="flex items-center gap-2">
+                <span className="text-headline font-bold text-ink truncate">猫步可爱</span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold font-mono">
+                  v0.1.1
                 </span>
               </div>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
-                {catMoods[catMoodIndex].text} · {catMoods[catMoodIndex].quote}
+              <p className="text-caption text-ink-3 mt-0.5 truncate">
+                本地沙箱加密存储 · 离线全功能
               </p>
             </div>
           </div>
-
-          <div className="flex items-center space-x-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-md">
-            <ShieldCheck className="w-3 h-3" />
-            <span>本地沙箱</span>
+          <div className="flex items-center gap-1.5 text-ok font-semibold text-caption shrink-0 bg-ok/10 px-2.5 py-1 rounded-full">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">本地沙箱</span>
           </div>
         </div>
 
-        {/* 2. Micro Segmented Filter (精凑快速定位标签) */}
-        <div className="flex items-center justify-between bg-zinc-200/70 dark:bg-zinc-800/60 p-0.5 rounded-xl text-[11px]">
-          {[
+        {/* Section filter */}
+        <SegmentedControl
+          groupId="settings-sections"
+          size="sm"
+          className="mb-4"
+          value={activeSection}
+          onChange={id => setActiveSection(id as SettingsSection)}
+          items={[
             { id: 'all', label: '全部' },
-            { id: 'appearance', label: '🎨 外观' },
-            { id: 'sync', label: '☁️ 同步' },
-            { id: 'data', label: '💾 数据' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                sound.playTap();
-                setActiveSection(tab.id as SettingsSection);
-              }}
-              className={`flex-1 py-1 text-center font-medium rounded-lg transition-all ${
-                activeSection === tab.id
-                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-xs font-bold'
-                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+            { id: 'appearance', label: '外观' },
+            { id: 'sync', label: '同步' },
+            { id: 'data', label: '数据' },
+            { id: 'about', label: '关于' },
+          ]}
+        />
 
-        {/* 3. Section: Appearance & Audio (紧凑外观与音效) */}
-        {(activeSection === 'all' || activeSection === 'appearance') && (
-          <div className="glass-card p-2.5 rounded-2xl border border-white/80 dark:border-zinc-800/80 shadow-ios space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-xs flex items-center space-x-1">
-                <Palette className="w-3.5 h-3.5 text-pink-500" />
-                <span>外观风格与触觉</span>
-              </span>
-              <button
-                onClick={handleToggleDeviceFrame}
-                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center space-x-0.5"
-              >
-                <Smartphone className="w-3 h-3" />
-                <span>{settings.deviceFrame === 'mobile' ? '手机机身' : '宽屏模式'}</span>
-              </button>
-            </div>
-
-            {/* Theme 3-Way Segmented Row */}
-            <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-xl text-[11px]">
-              <button
-                onClick={() => handleThemeChange('light')}
-                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
-                  settings.themeMode === 'light'
-                    ? 'bg-white text-zinc-900 shadow-xs font-bold'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                <Sun className="w-3 h-3 text-amber-500" />
-                <span>浅色</span>
-              </button>
-              <button
-                onClick={() => handleThemeChange('dark')}
-                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
-                  settings.themeMode === 'dark'
-                    ? 'bg-zinc-700 text-white shadow-xs font-bold'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                <Moon className="w-3 h-3 text-blue-400" />
-                <span>深色</span>
-              </button>
-              <button
-                onClick={() => handleThemeChange('system')}
-                className={`py-1 rounded-lg flex items-center justify-center space-x-1 transition ${
-                  settings.themeMode === 'system'
-                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-bold'
-                    : 'text-zinc-500 hover:text-zinc-800'
-                }`}
-              >
-                <Laptop className="w-3 h-3 text-zinc-500" />
-                <span>跟随</span>
-              </button>
-            </div>
-
-            {/* Accent Color Dot Row + Sound Toggle Row (Integrated) */}
-            <div className="flex items-center justify-between pt-1 border-t border-zinc-100 dark:border-zinc-800/60">
-              {/* 5 Dots */}
-              <div className="flex items-center space-x-1.5">
-                {accentColors.map(color => {
-                  const isSelected = (settings.accentColor || 'wechat') === color.id;
-                  return (
-                    <button
-                      key={color.id}
-                      onClick={() => handleAccentChange(color.id)}
-                      title={color.label}
-                      className={`w-6 h-6 rounded-full ${color.bg} flex items-center justify-center transition transform active:scale-90 ${
-                        isSelected ? 'ring-2 ring-offset-1 ring-zinc-400 dark:ring-zinc-600 scale-110' : 'opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3 h-3 text-white stroke-[3]" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Sound & Haptics switches */}
-              <div className="flex items-center space-x-1 text-[10px]">
-                <button
-                  onClick={handleTestSound}
-                  className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200"
-                >
-                  ▷ 试听
-                </button>
-                <button
-                  onClick={handleToggleSound}
-                  className={`px-2 py-0.5 rounded-full font-medium flex items-center space-x-0.5 transition ${
-                    settings.soundEnabled
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                      : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-                  }`}
-                >
-                  {settings.soundEnabled ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
-                  <span>{settings.soundEnabled ? '音效开' : '静音'}</span>
-                </button>
-                <button
-                  onClick={handleToggleHaptics}
-                  className={`px-2 py-0.5 rounded-full font-medium flex items-center space-x-0.5 transition ${
-                    settings.hapticsEnabled !== false
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
-                      : 'bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
-                  }`}
-                  title="触觉震动反馈"
-                >
-                  <Smartphone className="w-3 h-3" />
-                  <span>{settings.hapticsEnabled !== false ? '震动' : '无震动'}</span>
-                </button>
-              </div>
-            </div>
+        {/* ── Appearance ─────────────────────────────────────── */}
+        {showSection('appearance') && (
+          <div className="bg-surface rounded-2xl border border-line shadow-elev-1 divide-y divide-line/70 mb-4 overflow-hidden">
+            <Row
+              label="外观模式"
+              right={
+                <SegmentedControl
+                  groupId="settings-theme"
+                  size="sm"
+                  value={settings.themeMode}
+                  onChange={id => handleThemeChange(id as ThemeMode)}
+                  items={[
+                    { id: 'light', label: '浅色' },
+                    { id: 'dark', label: '深色' },
+                    { id: 'system', label: '跟随' },
+                  ]}
+                />
+              }
+            />
+            <Row
+              label="主题色"
+              hint="应用于全局强调色、按钮与进度环"
+              right={
+                <div className="flex items-center gap-2">
+                  {ACCENT_ORDER.map(id => {
+                    const def = ACCENTS[id];
+                    const isSelected = (settings.accentColor || 'apple') === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => handleAccentChange(id)}
+                        title={id}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-transform active:scale-90 ${
+                          isSelected ? 'ring-2 ring-offset-2 ring-accent scale-105' : 'opacity-75 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: def.hex }}
+                      >
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              }
+            />
+            <Row
+              label="提示音"
+              hint="轻触、完成的合成音效"
+              right={
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTestSound}
+                    className="text-caption font-semibold text-accent px-2.5 py-1 rounded-full bg-accent/10 tactile-press"
+                  >
+                    试听
+                  </button>
+                  <Switch checked={settings.soundEnabled} onChange={handleToggleSound} />
+                </div>
+              }
+            />
+            <Row
+              label="触感反馈"
+              hint="操作时的轻微震动"
+              right={<Switch checked={settings.hapticsEnabled !== false} onChange={handleToggleHaptics} />}
+            />
+            <Row
+              label="宽屏工作台预览"
+              hint="仅在宽屏浏览器窗口生效，手机端始终全屏"
+              right={<Switch checked={settings.deviceFrame === 'desktop'} onChange={handleToggleDeviceFrame} />}
+            />
           </div>
         )}
 
-        {/* 4. Section: WebDAV Cloud Sync (高密度紧凑 WebDAV) */}
-        {(activeSection === 'all' || activeSection === 'sync') && (
-          <WebDAVSyncCard onDataRestored={onRefreshAllData} accentColor={settings.accentColor} />
+        {/* ── Sync ───────────────────────────────────────────── */}
+        {showSection('sync') && (
+          <div className="mb-4">
+            <WebDAVSyncCard onDataRestored={onRefreshAllData} accentColor={settings.accentColor} />
+          </div>
         )}
 
-        {/* 5. Section: Data Management (紧凑数据指标与管理) */}
-        {(activeSection === 'all' || activeSection === 'data') && (
-          <div className="glass-card p-2.5 rounded-2xl border border-white/80 dark:border-zinc-800/80 shadow-ios space-y-2 text-xs">
-            {/* Header & Single-line Stats Bar */}
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-zinc-800 dark:text-zinc-200 text-xs flex items-center space-x-1">
-                <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
-                <span>本地数据资产</span>
-              </span>
-              <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                占用约 <strong className="text-zinc-800 dark:text-zinc-200">{storageMetrics.estimatedKB} KB</strong>
-              </span>
-            </div>
-
-            {/* Ultra-Compact 4-Pill Stats Strip */}
-            <div className="grid grid-cols-4 gap-1 text-center bg-zinc-100/90 dark:bg-zinc-800/80 p-1.5 rounded-xl">
-              <div>
-                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.plansTotal}</div>
-                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">计划({storageMetrics.pendingPlans})</div>
+        {/* ── Data ───────────────────────────────────────────── */}
+        {showSection('data') && (
+          <>
+            <div className="bg-surface rounded-2xl border border-line shadow-elev-1 p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sub font-semibold text-ink">本地数据</span>
+                <span className="text-caption text-ink-3">占用约 {storageMetrics.estimatedKB} KB</span>
               </div>
-              <div>
-                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.notesCount}</div>
-                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">灵感笔记</div>
-              </div>
-              <div>
-                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.credentialsCount}</div>
-                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">密码/2FA</div>
-              </div>
-              <div>
-                <div className="font-bold text-zinc-900 dark:text-zinc-100 text-xs">{storageMetrics.cloudAccountsCount}</div>
-                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 truncate">微软/谷歌</div>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { value: storageMetrics.plansTotal, label: `计划（待办 ${storageMetrics.pendingPlans}）` },
+                  { value: storageMetrics.notesCount, label: '笔记' },
+                  { value: storageMetrics.credentialsCount, label: '密码/2FA' },
+                  { value: storageMetrics.cloudAccountsCount, label: '云账号' },
+                ].map(item => (
+                  <div key={item.label} className="bg-surface-2/70 rounded-xl py-2.5 px-1 text-center">
+                    <div className="text-headline font-bold text-ink">{item.value}</div>
+                    <div className="text-[11px] text-ink-3 mt-0.5 truncate px-0.5">{item.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Quick Action Buttons (Export & Import in 1 Row) */}
-            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-              <button
+            <div className="bg-surface rounded-2xl border border-line shadow-elev-1 divide-y divide-line/70 mb-4 overflow-hidden">
+              <Row
+                label="导出全量备份"
+                hint="包含计划、笔记、凭据的 JSON 文件"
                 onClick={handleExportData}
-                className="h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95"
-              >
-                <Download className="w-3 h-3 text-blue-500" />
-                <span>全量导出 (JSON)</span>
-              </button>
-
-              <label className="h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-[11px] flex items-center justify-center space-x-1 cursor-pointer transition active:scale-95">
-                <Upload className="w-3 h-3 text-emerald-500" />
-                <span>导入备份恢复</span>
+                right={<span className="text-caption text-ink-3">导出</span>}
+              />
+              <label className="flex items-center justify-between px-4 py-3.5 cursor-pointer active:bg-surface-2/60 transition">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sub font-medium text-ink">导入备份恢复</div>
+                  <div className="text-caption text-ink-3 mt-0.5">选择此前导出的 JSON 备份文件</div>
+                </div>
+                <span className="text-caption text-accent font-semibold shrink-0">选择文件</span>
                 <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
               </label>
             </div>
 
-            {/* Compact Danger Reset Row */}
-            <div className="pt-1 border-t border-zinc-100 dark:border-zinc-800/60 flex items-center justify-between text-[10px]">
-              <span className="text-zinc-400">恢复出厂或清空缓存</span>
-              <button
-                onClick={handleResetData}
-                className="text-rose-500 hover:text-rose-600 font-semibold flex items-center space-x-0.5 transition"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>清空数据重置</span>
-              </button>
-            </div>
-          </div>
+            <Button variant="danger-soft" size="lg" className="w-full" haptic="medium" onClick={handleResetData}>
+              <RotateCcw className="w-4 h-4" />
+              <span>清空数据并重置</span>
+            </Button>
+          </>
         )}
 
-        {/* 6. Footer: About Info (单行折叠式) */}
-        <div className="py-1 px-2 text-center text-[10px] text-zinc-400 space-y-0.5">
-          <button
-            onClick={copyVersion}
-            className="hover:text-zinc-600 dark:hover:text-zinc-200 transition inline-flex items-center space-x-1"
-          >
-            <span>猫步可爱 v0.1.1 Release · React 19 + AES-256</span>
-            {copiedVersion ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5 text-zinc-400" />}
-          </button>
-          <div className="text-zinc-400/80">🐾 让每一个重要目标与灵感都能轻巧落地</div>
-        </div>
-      </div>
+        {/* ── About Section / Content ────────────────────────────── */}
+        {activeSection === 'about' ? (
+          <div className="pt-1 pb-6">
+            <AboutSection
+              settings={settings}
+              onUpdateSettings={onUpdateSettings}
+            />
+          </div>
+        ) : (
+          (showSection('about') || activeSection === 'all') && (
+            <div className="bg-surface rounded-2xl border border-line shadow-elev-1 divide-y divide-line/70 mb-4 overflow-hidden">
+              <Row
+                label="关于猫步可爱"
+                hint="软件信息、架构特性与自动更新检查"
+                onClick={() => {
+                  sound.playTap();
+                  setActiveSection('about');
+                }}
+                right={
+                  <div className="flex items-center gap-1.5 text-caption text-ink-3">
+                    {hasUpdate && (
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                    )}
+                    <span className="font-semibold text-ink-2">v0.1.1 (Android)</span>
+                    <ChevronRight className="w-4 h-4 text-ink-3" />
+                  </div>
+                }
+              />
+            </div>
+          )
+        )}
+
+        {/* Footer */}
+        {activeSection !== 'about' && (
+          <div className="py-5 text-center text-caption text-ink-3 space-y-1">
+            <button
+              onClick={() => {
+                sound.playTap();
+                setActiveSection('about');
+              }}
+              className="hover:text-accent transition inline-flex items-center gap-1.5 font-medium"
+            >
+              <span>关于猫步可爱 v0.1.1 (Android 正式版)</span>
+            </button>
+            <div className="text-ink-3/70">让每一个重要目标与灵感都能轻巧落地</div>
+          </div>
+        )}
+      </Screen>
     </div>
   );
 };

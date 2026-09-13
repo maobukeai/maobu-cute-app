@@ -2,34 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ────────────────────────────────────────────────────────────────
+   Design tokens — single source of truth.
+   Colors are stored as RGB triplets so Tailwind can inject alpha
+   (e.g. bg-surface/80). Accent values are applied at runtime by
+   src/utils/theme.ts via documentElement.style.setProperty.
+   ──────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
+    /* Light theme */
+    --canvas: 246 247 249;
+    --surface: 255 255 255;
+    --surface-2: 241 242 244;
+    --ink: 24 24 28;
+    --ink-2: 110 110 118;
+    --ink-3: 160 160 168;
+    --line: 226 227 230;
+
+    /* Accent defaults (Apple Blue) — overridden at runtime */
+    --accent-rgb: 10 132 255;
+    --theme-accent: #0A84FF;
+    --theme-accent-light: #EFF6FF;
+    --theme-accent-glow: rgba(10, 132, 255, 0.28);
+    --theme-bubble: #5AC8FA;
+
+    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.04) 0px, transparent 50%),
+                   radial-gradient(at 100% 0%, rgba(10, 132, 255, 0.04) 0px, transparent 50%),
+                   radial-gradient(at 50% 100%, rgba(10, 132, 255, 0.03) 0px, transparent 50%);
+
     font-variant-numeric: tabular-nums;
-    --theme-accent: #07C160;
-    --theme-accent-light: #E8F8F0;
-    --theme-accent-glow: rgba(7, 193, 96, 0.25);
-    --theme-bubble: #95EC69;
-    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.05) 0px, transparent 50%),
-                   radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.04) 0px, transparent 50%),
-                   radial-gradient(at 50% 100%, rgba(7, 193, 96, 0.04) 0px, transparent 50%);
   }
 
   .dark {
-    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.08) 0px, transparent 60%),
-                   radial-gradient(at 100% 0%, rgba(0, 122, 255, 0.07) 0px, transparent 60%),
-                   radial-gradient(at 50% 100%, rgba(7, 193, 96, 0.05) 0px, transparent 60%);
+    --canvas: 10 10 14;
+    --surface: 23 23 29;
+    --surface-2: 34 34 42;
+    --ink: 244 244 246;
+    --ink-2: 166 166 174;
+    --ink-3: 118 118 126;
+    --line: 46 46 54;
+
+    --app-bg-mesh: radial-gradient(at 0% 0%, rgba(255, 107, 139, 0.07) 0px, transparent 60%),
+                   radial-gradient(at 100% 0%, rgba(10, 132, 255, 0.06) 0px, transparent 60%),
+                   radial-gradient(at 50% 100%, rgba(7, 193, 96, 0.04) 0px, transparent 60%);
+  }
+
+  html {
+    background-color: rgb(var(--canvas));
   }
 
   body {
     -webkit-tap-highlight-color: transparent;
-    background-color: #F8F9FA;
-    color: #18181B;
+    overscroll-behavior-y: none;
+    background-color: rgb(var(--canvas));
+    color: rgb(var(--ink));
     font-variant-numeric: tabular-nums;
-  }
-
-  .dark body {
-    background-color: #0A0A0C;
-    color: #F4F4F6;
   }
 
   /* Refined text selection: allow copy & selection on textual content */
@@ -88,13 +115,11 @@
   scrollbar-width: none !important;
 }
 
+/* ── Surfaces ─────────────────────────────────────────────────── */
+
 /* App Background Surface with subtle ambient glow */
 .cat-bg-canvas {
-  background-color: #F8F9FA;
-  background-image: var(--app-bg-mesh);
-}
-.dark .cat-bg-canvas {
-  background-color: #0A0A0C;
+  background-color: rgb(var(--canvas));
   background-image: var(--app-bg-mesh);
 }
 
@@ -105,7 +130,7 @@
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
 .dark .glass-nav {
-  background: rgba(18, 18, 24, 0.82);
+  background: rgba(16, 16, 21, 0.82);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
 }
@@ -116,27 +141,41 @@
   -webkit-backdrop-filter: blur(16px);
 }
 .dark .glass-card {
-  background: rgba(24, 24, 30, 0.88);
+  background: rgba(23, 23, 29, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
-/* Inset Grouped iOS Card & Fluid Glass Card */
+/* Standard card: fluid glass with hairline border */
 .cat-card {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgb(var(--surface) / 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-radius: 20px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid rgb(var(--ink) / 0.05);
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 .dark .cat-card {
-  background: rgba(24, 24, 30, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgb(var(--surface) / 0.85);
+  border: 1px solid rgb(255 255 255 / 0.07);
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5);
 }
+
+/* iOS Grouped Item Card */
+.ios-group-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+.dark .ios-group-card {
+  background: rgba(23, 23, 29, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ── Interaction ──────────────────────────────────────────────── */
 
 /* Soft Squishy Press Feedback */
 .tactile-press {
@@ -146,7 +185,17 @@
   transform: scale(0.965);
 }
 
-/* WeChat Chat Bubble styling */
+/* iOS Spring Tap Effect */
+.press-spring {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
+}
+.press-spring:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* ── Chat bubbles ─────────────────────────────────────────────── */
+
 .bubble-self {
   background-color: var(--theme-bubble, #95EC69);
   color: #000000;
@@ -154,16 +203,18 @@
   box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.06);
 }
 .bubble-other {
-  background-color: #FFFFFF;
-  color: #18181B;
+  background-color: rgb(var(--surface));
+  color: rgb(var(--ink));
   border-radius: 4px 16px 16px 16px;
   box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.04);
 }
 .dark .bubble-other {
-  background-color: #24242C;
-  color: #F4F4F6;
+  background-color: rgb(var(--surface-2));
+  color: rgb(var(--ink));
   border: 1px solid rgba(255, 255, 255, 0.04);
 }
+
+/* ── Small utilities ──────────────────────────────────────────── */
 
 /* iOS Grouped Cell separator */
 .ios-separator {
@@ -175,8 +226,24 @@
 
 /* Tab indicator */
 .tab-active {
-  color: var(--theme-accent, #07C160);
+  color: var(--theme-accent, #0A84FF);
 }
+
+/* Mobile Safe Area Utilities */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ── Animations ───────────────────────────────────────────────── */
 
 /* 2FA QR Scanner Laser Animation */
 @keyframes qr-scan {
@@ -227,42 +294,3 @@
 .animate-cat-float {
   animation: cat-float 3.5s ease-in-out infinite;
 }
-
-/* iOS Spring Tap Effect */
-.press-spring {
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease;
-}
-.press-spring:active {
-  transform: scale(0.97);
-  opacity: 0.9;
-}
-
-/* iOS Grouped Item Card */
-.ios-group-card {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 0, 0, 0.03);
-}
-.dark .ios-group-card {
-  background: rgba(24, 24, 30, 0.92);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Mobile Safe Area Utilities */
-.pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
-}
-.pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-.pl-safe {
-  padding-left: env(safe-area-inset-left, 0px);
-}
-.pr-safe {
-  padding-right: env(safe-area-inset-right, 0px);
-}
-
-

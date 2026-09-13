@@ -81,7 +81,7 @@ export async function decryptData(encryptedBase64: string, masterKey: string): P
     return new TextDecoder().decode(decrypted);
   } catch (err) {
     console.error('Decryption error:', err);
-    throw new Error('解密失败，主密码错误或数据损坏');
+    throw new Error('解密失败，主密码错误或数据损坏', { cause: err });
   }
 }
 
@@ -190,7 +190,7 @@ export function generateStrongPassword(options: {
   let upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   let lower = 'abcdefghijkmnpqrstuvwxyz';
   let numbers = '23456789';
-  let symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
   if (!options.avoidAmbiguous) {
     upper += 'I' + 'O';

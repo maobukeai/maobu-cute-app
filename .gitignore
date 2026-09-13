@@ -24,6 +24,7 @@ local_test_*.json
 !.vscode/extensions.json
 .idea
 .DS_Store
+.zcode/
 *.suo
 *.ntvs*
 *.njsproj
@@ -47,3 +48,11 @@ android/.externalNativeBuild/
 # Local test artifacts (root-level screenshots & UI dumps)
 /*.png
 /window_dump.xml
+
+# Local debug artifacts
+emulator_*.png
+test_*.png
+current_*.png
+window_dump.xml
+.mission_ledger.json
+verify/

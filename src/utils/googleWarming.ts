@@ -325,6 +325,13 @@ Return ONLY a valid JSON array of objects without markdown fences:
   }
 ]`;
 
+      if (!provider.apiKey?.trim()) {
+        throw new Error('请先在「AI 助手 -> 模型配置」中配置 API Key');
+      }
+      if (!provider.defaultModel?.trim()) {
+        throw new Error('请先在「AI 助手 -> 模型配置」中配置可用模型');
+      }
+
       const payload = {
         model: provider.defaultModel,
         messages: [
@@ -430,7 +437,7 @@ export function importGoogleAccountsFromJSON(
   let parsed: any;
   try {
     parsed = JSON.parse(jsonText);
-  } catch (err: any) {
+  } catch {
     throw new Error('无效的 JSON 文件格式');
   }
 

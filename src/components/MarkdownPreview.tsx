@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Copy, ExternalLink, Square, CheckSquare } from 'lucide-react';
+import { Check, Copy, ExternalLink, Square, CheckSquare, FileText } from 'lucide-react';
 
 interface MarkdownPreviewProps {
   content: string;
@@ -16,12 +16,12 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
 
   if (!content || !content.trim()) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center text-zinc-400 dark:text-zinc-500">
-        <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-2 text-xl">
-          📝
+      <div className="flex flex-col items-center justify-center py-12 text-center text-ink-3">
+        <div className="w-12 h-12 rounded-2xl bg-surface-2 flex items-center justify-center mb-2">
+          <FileText className="w-5 h-5 text-ink-3" strokeWidth={1.8} />
         </div>
         <p className="text-xs font-medium">暂无内容预览</p>
-        <p className="text-[11px] mt-1 text-zinc-400/80">在编辑模式输入 Markdown 语法即可实时呈现排版效果</p>
+        <p className="text-caption mt-1 text-ink-3/80">在编辑模式输入 Markdown 语法即可实时呈现排版效果</p>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         const match = part.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
         if (match) {
           return (
-            <span key={i} className="my-2 block max-w-full rounded-xl overflow-hidden shadow-xs border border-zinc-200 dark:border-zinc-800">
+            <span key={i} className="my-2 block max-w-full rounded-xl overflow-hidden shadow-xs border border-line dark:border-line">
               <img
                 src={match[2]}
                 alt={match[1] || '图片'}
@@ -54,7 +54,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                 loading="lazy"
               />
               {match[1] && (
-                <span className="block text-center text-[10px] text-zinc-400 py-1 bg-zinc-50 dark:bg-zinc-900/50">
+                <span className="block text-center text-caption text-ink-3 py-1 bg-zinc-50 dark:bg-surface-2/50">
                   {match[1]}
                 </span>
               )}
@@ -87,7 +87,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         return (
           <code
             key={i}
-            className="px-1.5 py-0.5 mx-0.5 text-[11px] font-mono rounded-md bg-zinc-100 dark:bg-zinc-800 text-rose-500 dark:text-rose-400 border border-zinc-200/60 dark:border-zinc-700/60"
+            className="px-1.5 py-0.5 mx-0.5 text-caption font-mono rounded-md bg-surface-2 dark:bg-surface-2 text-rose-500 dark:text-rose-400 border border-line/60 dark:border-line/60"
           >
             {part.slice(1, -1)}
           </code>
@@ -97,7 +97,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       // Bold: **bold**
       if (part.startsWith('**') && part.endsWith('**') && part.length > 3) {
         return (
-          <strong key={i} className="font-bold text-zinc-900 dark:text-zinc-100">
+          <strong key={i} className="font-bold text-ink dark:text-zinc-100">
             {part.slice(2, -2)}
           </strong>
         );
@@ -106,7 +106,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       // Italic: *italic*
       if (part.startsWith('*') && part.endsWith('*') && part.length > 1) {
         return (
-          <em key={i} className="italic text-zinc-700 dark:text-zinc-300">
+          <em key={i} className="italic text-ink-2">
             {part.slice(1, -1)}
           </em>
         );
@@ -115,7 +115,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       // Strike: ~~strike~~
       if (part.startsWith('~~') && part.endsWith('~~') && part.length > 3) {
         return (
-          <del key={i} className="line-through text-zinc-400 dark:text-zinc-500">
+          <del key={i} className="line-through text-ink-3">
             {part.slice(2, -2)}
           </del>
         );
@@ -150,35 +150,35 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         blocks.push(
           <div
             key={`code-${idx}`}
-            className="my-3 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-900 text-zinc-100 font-mono text-xs shadow-xs"
+            className="my-3 rounded-xl overflow-hidden border border-line dark:border-line bg-surface-2 text-zinc-100 font-mono text-xs shadow-xs"
           >
-            <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/80 border-b border-zinc-700/60 text-[11px] text-zinc-400">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-surface-2 border-b border-line/60 text-caption text-ink-3">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block" />
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block" />
-                {codeLang && <span className="ml-2 font-mono uppercase text-zinc-300 font-semibold">{codeLang}</span>}
+                {codeLang && <span className="ml-2 font-mono uppercase text-ink-3 font-semibold">{codeLang}</span>}
               </div>
               <button
                 type="button"
                 onClick={() => handleCopyCode(currentCode, currentIndex)}
-                className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-zinc-700 text-zinc-300 transition"
+                className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-surface-2 text-ink-3 transition"
                 title="复制代码"
               >
                 {copiedIndex === currentIndex ? (
                   <>
-                    <Check className="w-3 h-3 text-[#07C160]" />
-                    <span className="text-[10px] text-[#07C160]">已复制</span>
+                    <Check className="w-3 h-3 text-accent" />
+                    <span className="text-caption text-accent">已复制</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-3 h-3" />
-                    <span className="text-[10px]">复制</span>
+                    <span className="text-caption">复制</span>
                   </>
                 )}
               </button>
             </div>
-            <pre className="p-3 overflow-x-auto leading-relaxed text-[11px] select-text">
+            <pre className="p-3 overflow-x-auto leading-relaxed text-caption select-text">
               <code>{currentCode}</code>
             </pre>
           </div>
@@ -195,7 +195,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     // Horizontal Rule
     if (/^(---|___|\*\*\*)$/.test(trimmed)) {
       blocks.push(
-        <hr key={`hr-${idx}`} className="my-4 border-t border-zinc-200 dark:border-zinc-800" />
+        <hr key={`hr-${idx}`} className="my-4 border-t border-line dark:border-line" />
       );
       continue;
     }
@@ -205,7 +205,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       blocks.push(
         <h1
           key={`h1-${idx}`}
-          className="text-lg sm:text-xl font-black text-zinc-900 dark:text-zinc-50 mt-4 mb-2 pb-1.5 border-b border-zinc-100 dark:border-zinc-800 flex items-center space-x-1.5"
+          className="text-lg sm:text-xl font-black text-ink dark:text-zinc-50 mt-4 mb-2 pb-1.5 border-b border-line dark:border-line flex items-center space-x-1.5"
         >
           <span>{renderInline(trimmed.slice(2))}</span>
         </h1>
@@ -217,7 +217,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       blocks.push(
         <h2
           key={`h2-${idx}`}
-          className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 mt-3.5 mb-1.5 flex items-center space-x-1.5"
+          className="text-base sm:text-lg font-bold text-ink dark:text-zinc-100 mt-3.5 mb-1.5 flex items-center space-x-1.5"
         >
           <span>{renderInline(trimmed.slice(3))}</span>
         </h2>
@@ -229,7 +229,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       blocks.push(
         <h3
           key={`h3-${idx}`}
-          className="text-sm sm:text-base font-semibold text-[#07C160] dark:text-[#07C160] mt-3 mb-1"
+          className="text-sm sm:text-base font-semibold text-accent mt-3 mb-1"
         >
           {renderInline(trimmed.slice(4))}
         </h3>
@@ -241,7 +241,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       blocks.push(
         <h4
           key={`h4-${idx}`}
-          className="text-xs sm:text-sm font-semibold text-zinc-700 dark:text-zinc-300 mt-2.5 mb-1"
+          className="text-xs sm:text-sm font-semibold text-ink-2 mt-2.5 mb-1"
         >
           {renderInline(trimmed.slice(5))}
         </h4>
@@ -255,7 +255,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       blocks.push(
         <blockquote
           key={`quote-${idx}`}
-          className="my-2 pl-3.5 py-1.5 pr-3 rounded-r-xl border-l-[3px] border-[#07C160] bg-zinc-50 dark:bg-zinc-800/40 text-xs text-zinc-700 dark:text-zinc-300 italic shadow-2xs"
+          className="my-2 pl-3.5 py-1.5 pr-3 rounded-r-xl border-l-[3px] border-accent bg-surface-2/60 text-xs text-ink-2 italic shadow-2xs"
         >
           {renderInline(quoteText)}
         </blockquote>
@@ -275,21 +275,21 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
           key={`task-${idx}`}
           onClick={() => onToggleTodo && onToggleTodo(currentLineIdx)}
           className={`flex items-start space-x-2 my-1 px-1.5 py-1 rounded-lg transition-colors group ${
-            onToggleTodo ? 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/60' : ''
+            onToggleTodo ? 'cursor-pointer hover:bg-surface-2' : ''
           }`}
         >
           <div className="shrink-0 mt-0.5">
             {isDone ? (
-              <CheckSquare className="w-4 h-4 text-[#07C160] transition-transform active:scale-90" />
+              <CheckSquare className="w-4 h-4 text-accent transition-transform active:scale-90" />
             ) : (
-              <Square className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-transform active:scale-90" />
+              <Square className="w-4 h-4 text-ink-3 group-hover:text-ink-2 transition-transform active:scale-90" />
             )}
           </div>
           <div
             className={`text-xs leading-relaxed flex-1 select-text ${
               isDone
-                ? 'line-through text-zinc-400 dark:text-zinc-500'
-                : 'text-zinc-800 dark:text-zinc-200'
+                ? 'line-through text-ink-3'
+                : 'text-ink'
             }`}
           >
             {renderInline(taskText)}
@@ -304,8 +304,8 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       const listText = trimmed.replace(/^[-*]\s+/, '');
       blocks.push(
         <div key={`ul-${idx}`} className="flex items-start space-x-2 my-1 pl-1 text-xs leading-relaxed">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#07C160] shrink-0 mt-1.5" />
-          <span className="text-zinc-800 dark:text-zinc-200 flex-1 select-text">
+          <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mt-1.5" />
+          <span className="text-ink flex-1 select-text">
             {renderInline(listText)}
           </span>
         </div>
@@ -320,10 +320,10 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
       const olText = olMatch[2];
       blocks.push(
         <div key={`ol-${idx}`} className="flex items-start space-x-2 my-1 pl-1 text-xs leading-relaxed">
-          <span className="font-mono text-[11px] font-bold text-zinc-400 dark:text-zinc-500 shrink-0 w-4 text-right">
+          <span className="font-mono text-caption font-bold text-ink-3 shrink-0 w-4 text-right">
             {num}.
           </span>
-          <span className="text-zinc-800 dark:text-zinc-200 flex-1 select-text">
+          <span className="text-ink flex-1 select-text">
             {renderInline(olText)}
           </span>
         </div>
@@ -365,22 +365,22 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         }
 
         blocks.push(
-          <div key={`table-${idx}`} className="my-3 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+          <div key={`table-${idx}`} className="my-3 overflow-x-auto rounded-xl border border-line">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-zinc-100 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-200 font-semibold">
+              <thead className="bg-surface-2 text-ink-2 font-semibold">
                 <tr>
                   {headerCells.map((h, hi) => (
-                    <th key={hi} className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700" style={{ textAlign: (alignMatch[hi] || 'left') as any }}>
+                    <th key={hi} className="px-3 py-2 border-b border-line" style={{ textAlign: (alignMatch[hi] || 'left') as any }}>
                       {renderInline(h)}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200/60 dark:divide-zinc-800">
+              <tbody className="divide-y divide-line">
                 {rows.map((row, ri) => (
-                  <tr key={ri} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                  <tr key={ri} className="hover:bg-surface-2/40">
                     {row.map((cell, ci) => (
-                      <td key={ci} className="px-3 py-2 text-zinc-800 dark:text-zinc-200" style={{ textAlign: (alignMatch[ci] || 'left') as any }}>
+                      <td key={ci} className="px-3 py-2 text-ink" style={{ textAlign: (alignMatch[ci] || 'left') as any }}>
                         {renderInline(cell)}
                       </td>
                     ))}
@@ -398,7 +398,7 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
     blocks.push(
       <p
         key={`p-${idx}`}
-        className="my-1.5 text-xs sm:text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed select-text"
+        className="my-1.5 text-xs sm:text-sm text-ink leading-relaxed select-text"
       >
         {renderInline(rawLine)}
       </p>
@@ -408,39 +408,39 @@ export const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   // If stream ended inside a code block or hasn't closed the backticks yet, flush buffer
   if (inCodeBlock && codeBuffer.length > 0) {
     const currentCode = codeBuffer.join('\n');
-    const currentIndex = codeBlockIndex++;
+    const currentIndex = codeBlockIndex;
     blocks.push(
       <div
         key="code-unclosed"
-        className="my-3 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-900 text-zinc-100 font-mono text-xs shadow-xs"
+        className="my-3 rounded-xl overflow-hidden border border-line dark:border-line bg-surface-2 text-zinc-100 font-mono text-xs shadow-xs"
       >
-        <div className="flex items-center justify-between px-3 py-1.5 bg-zinc-800/80 border-b border-zinc-700/60 text-[11px] text-zinc-400">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-surface-2 border-b border-line/60 text-caption text-ink-3">
           <div className="flex items-center space-x-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
             <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80 inline-block" />
             <span className="w-2.5 h-2.5 rounded-full bg-green-500/80 inline-block" />
-            {codeLang && <span className="ml-2 font-mono uppercase text-zinc-300 font-semibold">{codeLang}</span>}
+            {codeLang && <span className="ml-2 font-mono uppercase text-ink-3 font-semibold">{codeLang}</span>}
           </div>
           <button
             type="button"
             onClick={() => handleCopyCode(currentCode, currentIndex)}
-            className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-zinc-700 text-zinc-300 transition"
+            className="flex items-center space-x-1 px-2 py-0.5 rounded hover:bg-surface-2 text-ink-3 transition"
             title="复制代码"
           >
             {copiedIndex === currentIndex ? (
               <>
-                <Check className="w-3 h-3 text-[#07C160]" />
-                <span className="text-[10px] text-[#07C160]">已复制</span>
+                <Check className="w-3 h-3 text-accent" />
+                <span className="text-caption text-accent">已复制</span>
               </>
             ) : (
               <>
                 <Copy className="w-3 h-3" />
-                <span className="text-[10px]">复制</span>
+                <span className="text-caption">复制</span>
               </>
             )}
           </button>
         </div>
-        <pre className="p-3 overflow-x-auto leading-relaxed text-[11px] select-text">
+        <pre className="p-3 overflow-x-auto leading-relaxed text-caption select-text">
           <code>{currentCode}</code>
         </pre>
       </div>
