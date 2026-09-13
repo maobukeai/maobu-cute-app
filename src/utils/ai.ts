@@ -302,29 +302,97 @@ export function buildAuthHeaders(apiKey: string): Record<string, string> {
   return headers;
 }
 
+export interface ProviderTemplate {
+  id: string;
+  name: string;
+  baseUrl: string;
+  defaultModel: string;
+  models: string[];
+}
+
+export const PROVIDER_TEMPLATES: ProviderTemplate[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    defaultModel: 'deepseek-chat',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+  },
+  {
+    id: 'google',
+    name: '谷歌',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    defaultModel: 'gemini-1.5-flash',
+    models: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-3.5-flash-lite'],
+  },
+  {
+    id: 'sensenova',
+    name: 'sensenova',
+    baseUrl: 'https://api.sensenova.cn/v1',
+    defaultModel: 'SenseChat-5',
+    models: ['SenseChat-5', 'SenseChat-Turbo'],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+  },
+  {
+    id: 'custom',
+    name: '自定义兼容接口',
+    baseUrl: 'https://api.openai.com/v1',
+    defaultModel: '',
+    models: [],
+  },
+];
+
 export const DEFAULT_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_custom_openai',
-  name: '自定义兼容接口 (Custom Endpoint)',
-  baseUrl: 'https://api.openai.com/v1',
+  id: 'provider_deepseek',
+  name: 'DeepSeek',
+  baseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
-  defaultModel: '',
-  availableModels: [],
+  defaultModel: 'deepseek-chat',
+  availableModels: ['deepseek-chat', 'deepseek-reasoner'],
   isActive: true,
 };
 
 export const SECOND_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_custom_deepseek',
-  name: 'DeepSeek 官方开放平台',
-  baseUrl: 'https://api.deepseek.com/v1',
+  id: 'provider_google',
+  name: '谷歌',
+  baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
   apiKey: '',
-  defaultModel: '',
-  availableModels: [],
+  defaultModel: 'gemini-1.5-flash',
+  availableModels: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-3.5-flash-lite'],
+  isActive: false,
+};
+
+export const THIRD_CUSTOM_PROVIDER: AIProvider = {
+  id: 'provider_sensenova',
+  name: 'sensenova',
+  baseUrl: 'https://api.sensenova.cn/v1',
+  apiKey: '',
+  defaultModel: 'SenseChat-5',
+  availableModels: ['SenseChat-5', 'SenseChat-Turbo'],
+  isActive: false,
+};
+
+export const FOURTH_CUSTOM_PROVIDER: AIProvider = {
+  id: 'provider_openai',
+  name: 'OpenAI',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: '',
+  defaultModel: 'gpt-4o-mini',
+  availableModels: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
   isActive: false,
 };
 
 export const PRESET_PROVIDERS: AIProvider[] = [
   DEFAULT_CUSTOM_PROVIDER,
   SECOND_CUSTOM_PROVIDER,
+  THIRD_CUSTOM_PROVIDER,
+  FOURTH_CUSTOM_PROVIDER,
 ];
 
 export function getActiveAIProvider(provider?: AIProvider): AIProvider {

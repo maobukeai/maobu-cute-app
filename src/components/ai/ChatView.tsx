@@ -28,9 +28,11 @@ import {
 } from 'lucide-react';
 import { Button, Chip, Textarea, useToast } from '../ui';
 import { SkillPickerSheet } from './SkillPickerSheet';
+import { ModelPickerSheet } from './ModelPickerSheet';
 
 interface ChatViewProps {
   providers: AIProvider[];
+  onUpdateProviders?: (providers: AIProvider[]) => void;
   sessions: AISession[];
   onUpdateSessions: React.Dispatch<React.SetStateAction<AISession[]>>;
   skills: AISkill[];
@@ -267,6 +269,17 @@ const MessageRow = React.memo<{
               <span>{copied ? '已复制' : '复制'}</span>
             </button>
             <span>{msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ''}</span>
+            {msg.model && (
+              <>
+                <span className="opacity-40">·</span>
+                <span
+                  className="font-mono text-2xs opacity-75 max-w-[170px] truncate"
+                  title={`${msg.providerName ? msg.providerName + ' · ' : ''}${msg.model}`}
+                >
+                  {msg.providerName ? `${msg.providerName} · ${msg.model}` : msg.model}
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -276,6 +289,7 @@ const MessageRow = React.memo<{
 
 export const ChatView: React.FC<ChatViewProps> = ({
   providers,
+  onUpdateProviders,
   sessions,
   onUpdateSessions,
   skills,
@@ -294,6 +308,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // Custom Skill Picker Bottom Sheet State
   const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
+
+  // Cascading Model Picker Bottom Sheet State
+  const [isModelPickerOpen, setIsModelPickerOpen] = useState(false);
 
   // Chat input and streaming state
   const [inputMessage, setInputMessage] = useState('');
@@ -363,6 +380,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
     db.saveAISessions(updated);
   };
 
+  const handleSelectProviderModel = (providerId: string, modelName: string) => {
+    const updated = providers.map(p => {
+      if (p.id === providerId) {
+        const exists = p.availableModels?.includes(modelName);
+        return {
+          ...p,
+          isActive: true,
+          defaultModel: modelName,
+          availableModels: exists ? p.availableModels : [modelName, ...(p.availableModels || [])],
+        };
+      }
+      return { ...p, isActive: false };
+    });
+    onUpdateProviders?.(updated);
+    db.saveAIProviders(updated);
+  };
+
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isStreaming) return;
 
@@ -396,6 +430,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
       content: '',
       timestamp: new Date().toISOString(),
       isStreaming: true,
+      model: activeProvider?.defaultModel || '',
+      providerName: activeProvider?.name || '',
     };
 
     const updatedSession = {
@@ -598,18 +634,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </button>
         </div>
 
-        {/* Session Controls: Provider badge & New Session */}
+        {/* Session Controls: New Session */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={onGoToProviders}
-            className="px-2.5 py-1.5 rounded-full bg-accent/10 text-accent text-caption font-mono font-semibold flex items-center gap-1.5 tactile-press max-w-[150px]"
-            title="点击进入模型配置切换端点或模型"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${activeProvider?.defaultModel ? 'bg-accent animate-pulse' : 'bg-ink-3'} shrink-0`} />
-            <span className="truncate">{activeProvider?.defaultModel || '未配置模型'}</span>
-            <ChevronDown className="w-3 h-3 opacity-60 shrink-0" />
-          </button>
-
           <Button variant="soft" size="icon-sm" onClick={handleNewSession} title="新建对话">
             <Plus className="w-4 h-4" />
           </Button>
@@ -685,10 +711,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* Input Bar (WeChat Bottom Textarea) */}
       <div className="p-3 bg-surface/85 backdrop-blur-xl border-t border-line shrink-0 space-y-2">
-        {/* Quick Prompts */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 pr-6">
+        {/* Toolbar above input: Model Picker Pill (Vendor · Model) + Quick Prompts */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 pr-2">
+          {/* Cascading Model Selector Pill: First Provider, then Model */}
+          <button
+            type="button"
+            onClick={() => {
+              sound.playTap();
+              haptics.impactLight();
+              setIsModelPickerOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 hover:bg-surface-3 active:scale-95 border border-line hover:border-accent/40 text-caption font-medium shrink-0 transition-all cursor-pointer shadow-2xs select-none group"
+            title="点击切换大模型服务商与模型"
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                activeProvider?.defaultModel ? 'bg-accent animate-pulse' : 'bg-ink-4'
+              } shrink-0`}
+            />
+            <span className="font-bold text-ink truncate max-w-[90px]">
+              {activeProvider?.name || '服务商'}
+            </span>
+            <span className="text-ink-4 font-normal">·</span>
+            <span className="font-mono text-ink-2 max-w-[130px] truncate text-xs">
+              {activeProvider?.defaultModel || '选择模型'}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-ink-3 group-hover:text-accent transition-colors shrink-0" />
+          </button>
+
+          <div className="w-px h-3.5 bg-line shrink-0 mx-0.5" />
+
+          {/* Quick Prompts */}
           {QUICK_PROMPTS.map(p => (
-            <Chip key={p} onClick={() => setInputMessage(p)}>
+            <Chip key={p} onClick={() => setInputMessage(p)} className="shrink-0 text-caption">
               {p}
             </Chip>
           ))}
@@ -743,6 +798,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
         activeSkillId={currentSession?.activeSkillId || skills[0]?.id}
         onSelectSkill={handleSelectSkillForSession}
         onGoToSkillsCatalog={onGoToSkills}
+      />
+
+      {/* Cascading Model Picker Bottom Sheet */}
+      <ModelPickerSheet
+        isOpen={isModelPickerOpen}
+        onClose={() => setIsModelPickerOpen(false)}
+        providers={providers}
+        onUpdateProviders={onUpdateProviders || (() => {})}
+        onSelectProviderModel={handleSelectProviderModel}
+        onGoToProviders={onGoToProviders}
       />
     </div>
   );

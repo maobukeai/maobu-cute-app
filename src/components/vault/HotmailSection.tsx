@@ -86,6 +86,7 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
   const [sendSubject, setSendSubject] = useState('');
   const [sendContent, setSendContent] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [testingAccountId, setTestingAccountId] = useState<string | null>(null);
 
   // Mask toggles for Hotmail credentials
   const [revealedHotmail, setRevealedHotmail] = useState<Record<string, boolean>>({});
@@ -103,6 +104,7 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
   // Refresh and check Hotmail token
   const handleRefreshToken = async (acc: HotmailAccount) => {
     sound.playTap();
+    setTestingAccountId(acc.id);
     try {
       const res = await refreshMicrosoftToken(acc);
       const tokenExpiresAt = Date.now() + Math.max(300, res.expiresIn - 60) * 1000;
@@ -136,6 +138,7 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
         );
       }
       sound.playSuccess();
+      toast.success('微软令牌测通成功，已获取有效授权！');
     } catch (err: any) {
       console.error('Refresh token error:', err);
       const updated = accounts.map(a =>
@@ -161,6 +164,10 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
             : null
         );
       }
+      sound.playError();
+      toast.error('令牌检测失败: ' + err.message);
+    } finally {
+      setTestingAccountId(null);
     }
   };
 
@@ -441,7 +448,7 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
                           </span>
                         )}
                         {acc.lastErrorMessage && (
-                          <p className="text-caption text-danger mt-0.5 line-clamp-1">
+                          <p className="text-caption text-danger mt-1 break-words font-medium leading-relaxed">
                             {acc.lastErrorMessage}
                           </p>
                         )}
@@ -481,11 +488,12 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
                         variant="neutral"
                         size="sm"
                         onClick={() => handleRefreshToken(acc)}
+                        disabled={testingAccountId === acc.id}
                         title="刷新并测通令牌"
                         className="w-full"
                       >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>测通令牌</span>
+                        <RefreshCw className={`w-3.5 h-3.5 ${testingAccountId === acc.id ? 'animate-spin text-accent' : ''}`} />
+                        <span>{testingAccountId === acc.id ? '检测中...' : '测通令牌'}</span>
                       </Button>
 
                       <Button

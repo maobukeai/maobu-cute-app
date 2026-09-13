@@ -217,6 +217,13 @@ function microsoftProxyPlugin() {
         next();
       });
     },
+    configurePreviewServer(server: any) {
+      // Also enable proxy in vite preview mode
+      const devConfigure = (this as any).configureServer;
+      if (devConfigure) {
+        devConfigure.call(this, server);
+      }
+    },
   };
 }
 
@@ -230,9 +237,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'script-defer',
       manifest: false,
+      devOptions: {
+        enabled: false, // Do not intercept with SW during local development
+      },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        skipWaiting: true,
+        clientsClaim: true,
         cleanupOutdatedCaches: true,
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },

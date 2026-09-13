@@ -1,7 +1,7 @@
 // App Updater Service for 【猫步可爱 (Maobu Cute)】(Android Mobile Exclusive)
 import { AppUpdateCheckResult, AppUpdateInfo, AppUpdateAsset } from '../types';
 
-export const CURRENT_VERSION = '0.1.1';
+export const CURRENT_VERSION = '0.1.2';
 export const APP_BUILD_TAG = 'Android 14 (Capacitor)';
 export const GITHUB_REPO = 'maobukeai/maobu-cute-app';
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;

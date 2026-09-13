@@ -95,6 +95,121 @@ export function extractVerificationCode(subject: string, bodyText: string): stri
   return undefined;
 }
 
+// Parse and translate Microsoft error descriptions into user-friendly Chinese messages
+export function formatMicrosoftErrorMessage(rawError: string): string {
+  if (!rawError) return '微软服务请求异常';
+
+  const lower = rawError.toLowerCase();
+
+  // 1. Account security lock / compromised
+  if (lower.includes('compromised') || lower.includes('account security interrupt') || lower.includes('collecting proof')) {
+    return '微软风控锁定：该账号已被微软系统判定异常活动(Compromised)，需前往微软官网登录完成安全人机验证';
+  }
+
+  // 2. Account disabled or locked by too many attempts
+  if (rawError.includes('AADSTS50053')) {
+    return '错误密码尝试次数过多，该微软账号已被临时锁定';
+  }
+  if (rawError.includes('AADSTS50057')) {
+    return '该微软账号已被禁用或处于挂起状态';
+  }
+
+  // 3. Credentials reset / Password changed
+  if (rawError.includes('AADSTS50173') || lower.includes('password has been changed') || lower.includes('recent password change')) {
+    return '账号密码近期已修改，原有刷新令牌全部作废，请重新登录获取';
+  }
+
+  // 4. MFA required
+  if (rawError.includes('AADSTS50076') || rawError.includes('AADSTS50079') || lower.includes('multi-factor authentication')) {
+    return '账号需要二次多因素安全验证(MFA)，请在微软官网完成验证';
+  }
+
+  // 5. Conditional access block
+  if (rawError.includes('AADSTS53003')) {
+    return '已被微软条件访问策略拦截，请更换网络 IP 节点';
+  }
+
+  // 6. Token expired
+  if (rawError.includes('AADSTS700082') || lower.includes('has expired')) {
+    return '刷新令牌已自然过期（超过最长有效生命周期），需重新获取并导入';
+  }
+
+  // 7. General invalid token
+  if (rawError.includes('AADSTS70000') || rawError.includes('invalid_grant')) {
+    return '刷新令牌(RefreshToken)无效或已被撤回，请重新获取并导入';
+  }
+
+  if (rawError.includes('invalid_client') || rawError.includes('AADSTS700016')) {
+    return '应用客户端标识(Client ID)无效或应用不存在';
+  }
+
+  if (rawError.includes('Failed to fetch') || rawError.includes('NetworkError') || rawError.includes('net::ERR_')) {
+    return '网络无法直连微软认证服务器，请检查网络连接或科学代理设置';
+  }
+
+  if (rawError.includes('HTML') || rawError.includes('<!DOCTYPE') || rawError.includes('<!doctype') || rawError.includes('<html')) {
+    return '接口返回了网页内容而非认证数据，可能受网络代理拦截或路由回退';
+  }
+
+  return rawError;
+}
+
+export interface SafeJsonResult<T = any> {
+  ok: boolean;
+  data?: T;
+  error?: string;
+  isHtml?: boolean;
+}
+
+// Safely parse JSON responses, strictly intercepting HTML (SPA fallbacks / error pages)
+export async function safeParseJsonResponse<T = any>(res: Response): Promise<SafeJsonResult<T>> {
+  try {
+    const text = await res.text();
+    const trimmed = text.trim();
+    if (
+      trimmed.startsWith('<') ||
+      trimmed.includes('<!DOCTYPE') ||
+      trimmed.includes('<!doctype') ||
+      trimmed.toLowerCase().includes('<html')
+    ) {
+      return {
+        ok: false,
+        isHtml: true,
+        error: `服务端返回了网页(HTML)而非数据 (HTTP ${res.status})`,
+      };
+    }
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return {
+        ok: false,
+        error: `响应非有效 JSON 格式: ${trimmed.slice(0, 100)}`,
+      };
+    }
+
+    if (!res.ok) {
+      const rawDesc = parsed.error_description || parsed.error?.message || parsed.error || `HTTP ${res.status}`;
+      return {
+        ok: false,
+        data: parsed,
+        error: formatMicrosoftErrorMessage(rawDesc),
+      };
+    }
+
+    return {
+      ok: true,
+      data: parsed as T,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      error: `读取响应内容失败: ${err.message || String(err)}`,
+    };
+  }
+}
+
 // Refresh Microsoft OAuth Access Token
 export async function refreshMicrosoftToken(account: HotmailAccount): Promise<{
   accessToken: string;
@@ -105,83 +220,59 @@ export async function refreshMicrosoftToken(account: HotmailAccount): Promise<{
   params.append('client_id', account.clientId || '9e5f94bc-e8a4-4e73-b8be-63364c29d753');
   params.append('grant_type', 'refresh_token');
   params.append('refresh_token', account.refreshToken);
-  // CRITICAL FIX: DO NOT append hardcoded scope!
-  // In OAuth2 standard RFC 6749 Section 6, omitting the scope parameter automatically
-  // inherits the scopes originally granted to this refresh token.
-  // Passing an arbitrary/unconsented scope causes Azure AD to fail with:
-  // "AADSTS70000: The request was denied because one or more scopes requested are unauthorized or invalid."
 
-  let response: Response | null = null;
-  let lastErrorText = '';
+  // Multi-tier endpoints:
+  // 1. Consumers endpoint: best for personal @hotmail.com / @outlook.com / @live.com accounts
+  // 2. Common endpoint: standard universal endpoint
+  // 3. Local proxy endpoint: fallback for dev/desktop proxy
+  const endpoints = [
+    'https://login.microsoftonline.com/consumers/oauth2/v2.0/token',
+    'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    '/api/ms-oauth/token',
+  ];
 
-  // 1. Try local dev proxy /api/ms-oauth/token
-  try {
-    const res = await fetch('/api/ms-oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
-    if (res.ok) {
-      response = res;
-    } else {
-      const errJson = await res.json().catch(() => ({}));
-      lastErrorText = errJson.error_description || errJson.error || `Proxy error (${res.status})`;
-    }
-  } catch (e: any) {
-    lastErrorText = e.message || String(e);
-  }
+  let bestErrorMessage = '';
+  let tokenData: any = null;
 
-  // 2. If proxy failed or not in dev server, try direct Microsoft common endpoint
-  if (!response) {
+  for (const endpoint of endpoints) {
     try {
-      const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString(),
       });
-      if (res.ok) {
-        response = res;
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        lastErrorText = errJson.error_description || errJson.error || `Direct error (${res.status})`;
+
+      const parsed = await safeParseJsonResponse<{
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      }>(res);
+
+      if (parsed.ok && parsed.data?.access_token) {
+        tokenData = parsed.data;
+        break;
+      }
+
+      if (parsed.error && !parsed.isHtml) {
+        // Prefer specific business errors (like invalid_grant) over HTML proxy errors
+        bestErrorMessage = parsed.error;
+      } else if (!bestErrorMessage && parsed.error) {
+        bestErrorMessage = parsed.error;
       }
     } catch (e: any) {
-      lastErrorText = e.message || String(e);
+      const friendly = formatMicrosoftErrorMessage(e.message || String(e));
+      if (!bestErrorMessage) bestErrorMessage = friendly;
     }
   }
 
-  // 3. Try consumers endpoint fallback
-  if (!response) {
-    try {
-      const res = await fetch('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-      if (res.ok) {
-        response = res;
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        lastErrorText = errJson.error_description || errJson.error || `Consumers error (${res.status})`;
-      }
-    } catch (e: any) {
-      lastErrorText = e.message || String(e);
-    }
-  }
-
-  if (!response) {
-    throw new Error(lastErrorText || '刷新微软令牌失败，请检查 RefreshToken 是否有效');
-  }
-
-  const data = await response.json();
-  if (!data.access_token) {
-    throw new Error(data.error_description || data.error || '未能获取有效的 AccessToken');
+  if (!tokenData?.access_token) {
+    throw new Error(bestErrorMessage || '刷新微软令牌失败，请检查 RefreshToken 是否有效');
   }
 
   return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token || account.refreshToken,
-    expiresIn: data.expires_in || 3600,
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token || account.refreshToken,
+    expiresIn: tokenData.expires_in || 3600,
   };
 }
 
@@ -195,15 +286,15 @@ export async function fetchFolderMessages(
   let fetchSucceeded = false;
   let lastError = '';
 
-  // Method 1: Try Outlook REST API (v2.0) - standard for tokens issued to Outlook clients (client ID 9e5f94bc-...)
-  const outlookEndpoints = [
-    `/api/ms-outlook/me/mailFolders/${folderPath}/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
-    `https://outlook.office.com/api/v2.0/me/mailFolders/${folderPath}/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
-    `/api/ms-outlook/me/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
-    `https://outlook.office.com/api/v2.0/me/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`
+  // 1. Microsoft Graph API (v1.0) - modern standard recommended by Microsoft
+  const graphEndpoints = [
+    `https://graph.microsoft.com/v1.0/me/mailFolders/${folderPath}/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
+    `https://graph.microsoft.com/v1.0/me/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
+    `/api/ms-graph/me/mailFolders/${folderPath}/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
+    `/api/ms-graph/me/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
   ];
 
-  for (const endpoint of outlookEndpoints) {
+  for (const endpoint of graphEndpoints) {
     try {
       const res = await fetch(endpoint, {
         headers: {
@@ -211,31 +302,29 @@ export async function fetchFolderMessages(
           'Accept': 'application/json',
         },
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.value)) {
-          rawList = data.value;
-          fetchSucceeded = true;
-          break;
-        }
-      } else {
-        lastError = `Outlook API (${res.status})`;
+      const parsed = await safeParseJsonResponse<any>(res);
+      if (parsed.ok && parsed.data && Array.isArray(parsed.data.value)) {
+        rawList = parsed.data.value;
+        fetchSucceeded = true;
+        break;
+      } else if (parsed.error && !parsed.isHtml) {
+        lastError = parsed.error;
       }
     } catch (e: any) {
-      lastError = e.message;
+      lastError = formatMicrosoftErrorMessage(e.message || String(e));
     }
   }
 
-  // Method 2: If Outlook API did not succeed, try Microsoft Graph API (v1.0)
+  // 2. Outlook REST API (v2.0) - legacy fallback
   if (!fetchSucceeded) {
-    const graphEndpoints = [
-      `/api/ms-graph/me/mailFolders/${folderPath}/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
-      `https://graph.microsoft.com/v1.0/me/mailFolders/${folderPath}/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
-      `/api/ms-graph/me/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`,
-      `https://graph.microsoft.com/v1.0/me/messages?$top=30&$select=id,subject,from,receivedDateTime,bodyPreview,body`
+    const outlookEndpoints = [
+      `https://outlook.office.com/api/v2.0/me/mailFolders/${folderPath}/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
+      `https://outlook.office.com/api/v2.0/me/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
+      `/api/ms-outlook/me/mailFolders/${folderPath}/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
+      `/api/ms-outlook/me/messages?$top=30&$select=Id,Subject,From,ReceivedDateTime,BodyPreview,Body`,
     ];
 
-    for (const endpoint of graphEndpoints) {
+    for (const endpoint of outlookEndpoints) {
       try {
         const res = await fetch(endpoint, {
           headers: {
@@ -243,18 +332,16 @@ export async function fetchFolderMessages(
             'Accept': 'application/json',
           },
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.value)) {
-            rawList = data.value;
-            fetchSucceeded = true;
-            break;
-          }
-        } else {
-          lastError = `Graph API (${res.status})`;
+        const parsed = await safeParseJsonResponse<any>(res);
+        if (parsed.ok && parsed.data && Array.isArray(parsed.data.value)) {
+          rawList = parsed.data.value;
+          fetchSucceeded = true;
+          break;
+        } else if (parsed.error && !parsed.isHtml) {
+          lastError = parsed.error;
         }
       } catch (e: any) {
-        lastError = e.message;
+        lastError = formatMicrosoftErrorMessage(e.message || String(e));
       }
     }
   }
@@ -391,14 +478,14 @@ export async function sendMicrosoftEmail(
   };
 
   const endpoints = [
-    // 1. Outlook REST API via proxy
-    '/api/ms-outlook/me/sendmail',
-    // 2. Outlook REST API direct
-    'https://outlook.office.com/api/v2.0/me/sendmail',
-    // 3. Microsoft Graph API via proxy
-    '/api/ms-graph/me/sendMail',
-    // 4. Microsoft Graph API direct
+    // 1. Microsoft Graph API direct (Modern standard)
     'https://graph.microsoft.com/v1.0/me/sendMail',
+    // 2. Microsoft Graph API via proxy
+    '/api/ms-graph/me/sendMail',
+    // 3. Outlook REST API direct (Legacy fallback)
+    'https://outlook.office.com/api/v2.0/me/sendmail',
+    // 4. Outlook REST API via proxy
+    '/api/ms-outlook/me/sendmail',
   ];
 
   let lastError = '';
@@ -415,10 +502,14 @@ export async function sendMicrosoftEmail(
       if (res.ok || res.status === 202) {
         return;
       }
-      const errTxt = await res.text().catch(() => '');
-      lastError = `HTTP ${res.status}: ${errTxt.slice(0, 120)}`;
+      const parsed = await safeParseJsonResponse(res);
+      if (parsed.error && !parsed.isHtml) {
+        lastError = parsed.error;
+      } else if (!lastError && parsed.error) {
+        lastError = parsed.error;
+      }
     } catch (e: any) {
-      lastError = e.message || String(e);
+      lastError = formatMicrosoftErrorMessage(e.message || String(e));
     }
   }
 

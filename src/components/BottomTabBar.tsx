@@ -50,12 +50,21 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                 />
               )}
               <div className="relative flex items-center justify-center">
-                <Icon
-                  className={`w-5 h-5 transition-all duration-200 relative z-10 ${
-                    isActive ? 'text-accent scale-110 -translate-y-0.5' : 'text-ink-3'
-                  }`}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                />
+                <motion.div
+                  animate={{
+                    scale: isActive ? 1.12 : 1,
+                    y: isActive ? -1 : 0,
+                  }}
+                  transition={{ type: 'spring', stiffness: 460, damping: 30 }}
+                  className="relative flex items-center justify-center"
+                >
+                  <Icon
+                    className={`w-5 h-5 transition-colors duration-200 relative z-10 ${
+                      isActive ? 'text-accent' : 'text-ink-3'
+                    }`}
+                    strokeWidth={isActive ? 2.2 : 1.8}
+                  />
+                </motion.div>
                 {tab.id === 'plans' && pendingPlansCount > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 bg-danger text-white text-[11px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-elev-1 ring-2 ring-surface animate-scale-in z-20">
                     {pendingPlansCount > 99 ? '99+' : pendingPlansCount}

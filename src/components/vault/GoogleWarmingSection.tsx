@@ -19,7 +19,6 @@ import { haptics } from '../../utils/haptics';
 import { BottomSheet } from '../common/BottomSheet';
 import {
   Button,
-  Chip,
   EmptyState,
   Field,
   Input,
@@ -554,34 +553,29 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      {/* Header toolbar */}
-      <div className="px-4 pt-3 pb-2.5 bg-surface/80 backdrop-blur-2xl border-b border-line/60 shrink-0 space-y-2.5">
-        {/* Row 1: Title + test mode toggle */}
+      {/* Header toolbar - ultra compact & high density */}
+      <div className="px-3.5 pt-2 pb-1.5 bg-surface/85 backdrop-blur-xl border-b border-line/60 shrink-0 space-y-1.5">
+        {/* Row 1: Compact title + test mode toggle */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-orange-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm flex items-center justify-center shrink-0">
-              <Globe className="w-5 h-5" strokeWidth={1.8} />
+          <div className="flex items-center gap-2 min-w-0" title="全球权重梯级晋升 · 14 天系统化防封打卡">
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-amber-500/20 via-amber-500/10 to-orange-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs flex items-center justify-center shrink-0">
+              <Globe className="w-3.5 h-3.5" strokeWidth={2} />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-headline font-bold text-ink truncate tracking-tight">谷歌 14 天科学养号</h3>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 tracking-wide shrink-0">
-                  全自动防风控
-                </span>
-              </div>
-              <p className="text-caption text-ink-3 truncate mt-0.5">全球权重梯级晋升 · 14 天系统化防封打卡</p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="text-sub font-bold text-ink truncate leading-none">谷歌 14 天科学养号</h3>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 tracking-wide shrink-0 leading-none">
+                防风控
+              </span>
             </div>
           </div>
 
-          {/* Test mode switch */}
+          {/* Micro Test mode switch */}
           <div
-            className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-surface-2/80 border border-line/60 shrink-0 select-none shadow-sm hover:border-line transition-colors"
-            title="开启后跳过 24 小时打卡间隔限制，可连续测试 14 天打卡流转"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface-2/80 border border-line/60 shrink-0 select-none shadow-xs hover:border-line transition-colors"
+            title="测试打卡模式：开启后跳过 24 小时打卡间隔限制，可连续测试 14 天打卡流转"
           >
-            <div className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${testMode ? 'bg-ok animate-pulse' : 'bg-ink-4'}`} />
-              <span className="text-caption font-medium text-ink-2 whitespace-nowrap">测试打卡</span>
-            </div>
+            <span className={`w-1.5 h-1.5 rounded-full ${testMode ? 'bg-ok animate-pulse' : 'bg-ink-4'}`} />
+            <span className="text-[11px] font-medium text-ink-2 whitespace-nowrap">测试打卡</span>
             <Switch
               checked={testMode}
               onChange={() => {
@@ -592,22 +586,22 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
           </div>
         </div>
 
-        {/* Row 2: Search + action group (generous width for search, compact tool pill) */}
-        <div className="flex items-center gap-2">
+        {/* Row 2: Search + action group (ultra-compact) */}
+        <div className="flex items-center gap-1.5">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-ink-3 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="搜索 Gmail 邮箱、地区、备注..."
-              className="w-full pl-9 pr-8 py-2 text-caption rounded-full bg-surface border border-line text-ink placeholder:text-ink-3 outline-none focus:ring-2 ring-accent/40 shadow-elev-1 transition-all"
+              className="w-full pl-8 pr-7 py-1 text-caption rounded-full bg-surface border border-line text-ink placeholder:text-ink-3 outline-none focus:ring-1.5 ring-accent/40 shadow-xs transition-all h-7"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-surface-2 text-ink-3 hover:text-ink tactile-press"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center rounded-full bg-surface-2 text-ink-3 hover:text-ink tactile-press"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -626,21 +620,21 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
               });
               setShowEditModal(true);
             }}
-            className="shrink-0"
+            className="shrink-0 h-7 px-2.5 text-caption gap-1"
           >
             <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>添加账号</span>
           </Button>
 
-          {/* Grouped compact tools: Import, Export, Password Gen */}
-          <div className="flex items-center rounded-full bg-surface-2/90 border border-line/70 p-0.5 shrink-0 shadow-sm">
+          {/* Grouped compact tools */}
+          <div className="flex items-center rounded-full bg-surface-2/90 border border-line/70 p-0.5 shrink-0 shadow-xs h-7">
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
               title="从 3D平台 JSON 备份 / 文本 / AI 导入"
-              className="h-7 px-2.5 flex items-center gap-1 rounded-full text-caption font-medium text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
+              className="h-6 px-2 flex items-center gap-1 rounded-full text-[11px] font-medium text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
             >
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-3 h-3" />
               <span className="hidden sm:inline">导入</span>
             </button>
             <div className="w-px h-3 bg-line/60 shrink-0" />
@@ -648,9 +642,9 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
               type="button"
               onClick={handleExportJSON}
               title="导出为 3D 平台兼容 JSON 备份"
-              className="h-7 px-2.5 flex items-center gap-1 rounded-full text-caption font-medium text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
+              className="h-6 px-2 flex items-center gap-1 rounded-full text-[11px] font-medium text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3 h-3" />
               <span className="hidden sm:inline">备份</span>
             </button>
             <div className="w-px h-3 bg-line/60 shrink-0" />
@@ -661,15 +655,15 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                 setShowPasswordGenModal(true);
               }}
               title="随机强密码生成器"
-              className="h-7 w-7 flex items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
+              className="h-6 w-6 flex items-center justify-center rounded-full text-ink-2 hover:text-ink hover:bg-surface transition-all tactile-press"
             >
-              <Key className="w-3.5 h-3.5" />
+              <Key className="w-3 h-3" />
             </button>
           </div>
         </div>
 
-        {/* Row 3: Status segmented control + Category select (clean separation & no truncation) */}
-        <div className="flex items-center justify-between gap-2 pt-0.5">
+        {/* Row 3: Compact Segmented control + Category select */}
+        <div className="flex items-center justify-between gap-1.5 pt-0.5">
           <div className="flex-1 min-w-0">
             <SegmentedControl
               groupId="google-warming-status-filters"
@@ -691,7 +685,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                 sound.playTap();
                 setSelectedCategory(e.target.value);
               }}
-              className={`appearance-none h-8 pl-6 pr-6 rounded-full text-caption font-semibold transition-all cursor-pointer outline-none border shadow-sm ${
+              className={`appearance-none h-7 pl-5 pr-5 rounded-full text-[11px] font-semibold transition-all cursor-pointer outline-none border shadow-xs ${
                 selectedCategory !== 'all'
                   ? 'bg-accent/10 border-accent/40 text-accent font-bold'
                   : 'bg-surface-2/90 border-line/70 text-ink-2 hover:text-ink hover:border-line'
@@ -713,12 +707,12 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
               })}
             </select>
             <Tag
-              className={`w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${
+              className={`w-2.5 h-2.5 absolute left-1.5 top-1/2 -translate-y-1/2 pointer-events-none ${
                 selectedCategory !== 'all' ? 'text-accent' : 'text-ink-3'
               }`}
             />
             <ChevronDown
-              className={`w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+              className={`w-2.5 h-2.5 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none ${
                 selectedCategory !== 'all' ? 'text-accent' : 'text-ink-3'
               }`}
             />

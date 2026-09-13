@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import React, { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion, type Variants } from 'motion/react';
 import {
   PlanItem,
   NoteItem,
@@ -66,6 +66,41 @@ const StorageQuotaWatcher: React.FC = () => {
     return () => window.removeEventListener('maobu-storage-quota', handler);
   }, [toast]);
   return null;
+};
+
+const TAB_ORDER: Record<AppTab, number> = {
+  dashboard: 0,
+  plans: 1,
+  notes: 2,
+  vault: 3,
+  ai: 4,
+  settings: 5,
+};
+
+const pageVariants: Variants = {
+  enter: (direction: number) => ({
+    x: direction === 0 ? 0 : direction > 0 ? 32 : -32,
+    opacity: 0,
+    pointerEvents: 'none' as const,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    pointerEvents: 'auto' as const,
+    transition: {
+      x: { type: 'spring' as const, stiffness: 360, damping: 32, mass: 0.8 },
+      opacity: { duration: 0.18, ease: 'easeOut' },
+    },
+  },
+  exit: (direction: number) => ({
+    x: direction === 0 ? 0 : direction > 0 ? -26 : 26,
+    opacity: 0,
+    pointerEvents: 'none' as const,
+    transition: {
+      x: { type: 'spring' as const, stiffness: 360, damping: 32, mass: 0.8 },
+      opacity: { duration: 0.14, ease: 'easeIn' },
+    },
+  }),
 };
 
 export const App: React.FC = () => {
@@ -198,7 +233,27 @@ export const App: React.FC = () => {
     };
   }, [settings.autoCheckUpdate, settings.dismissedVersion]);
 
+  const [tabDirection, setTabDirection] = useState<number>(0);
+  const prevTabRef = useRef<AppTab>(settings.activeTab);
+
+  // Sync direction if settings.activeTab is updated from any other place
+  useEffect(() => {
+    if (settings.activeTab !== prevTabRef.current) {
+      const prevOrder = TAB_ORDER[prevTabRef.current] ?? 0;
+      const nextOrder = TAB_ORDER[settings.activeTab] ?? 0;
+      setTabDirection(nextOrder === prevOrder ? 0 : nextOrder > prevOrder ? 1 : -1);
+      prevTabRef.current = settings.activeTab;
+    }
+  }, [settings.activeTab]);
+
   const handleSelectTab = (tab: AppTab) => {
+    if (tab === settings.activeTab) return;
+    const prevOrder = TAB_ORDER[prevTabRef.current] ?? 0;
+    const nextOrder = TAB_ORDER[tab] ?? 0;
+    const direction = nextOrder === prevOrder ? 0 : nextOrder > prevOrder ? 1 : -1;
+    setTabDirection(direction);
+    prevTabRef.current = tab;
+
     perf.mark(`tab:${tab}:start`);
     setSettings(prev => {
       const updated: AppSettings = { ...prev, activeTab: tab };
@@ -364,17 +419,19 @@ export const App: React.FC = () => {
           isDesktop={isDesktopWorkbench}
         />
 
-        {/* Tab Pages with soft transition */}
+        {/* Tab Pages with fluid directional transition */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           <React.Suspense fallback={<TabLoadingSkeleton />}>
-            <AnimatePresence mode="wait" initial={false}>
+            <AnimatePresence mode="popLayout" initial={false} custom={tabDirection}>
               <motion.div
                 key={settings.activeTab}
-                className="flex-1 flex flex-col overflow-hidden"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                custom={tabDirection}
+                variants={pageVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                className="w-full h-full flex-1 flex flex-col overflow-hidden"
+                style={{ willChange: 'transform, opacity' }}
               >
                 {renderActiveTab()}
               </motion.div>

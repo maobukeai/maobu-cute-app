@@ -131,6 +131,8 @@ export interface AIMessage {
   timestamp: string;
   isStreaming?: boolean;
   error?: string;
+  model?: string;
+  providerName?: string;
 }
 
 export interface AISession {

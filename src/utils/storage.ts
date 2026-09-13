@@ -279,39 +279,26 @@ export const db = {
   // AI Providers
   getAIProviders: (): AIProvider[] => {
     const list = getStored(STORAGE_KEYS.AI_PROVIDERS, PRESET_PROVIDERS);
-    let mutated = false;
-    const sanitized = list.map(p => {
-      const legacyMockModels = [
-        'deepseek-chat',
-        'deepseek-reasoner',
-        'gpt-4o',
-        'gpt-4o-mini',
-        'claude-3-5-sonnet',
-        'deepseek-v4-flash',
-        'glm-5.2',
-        'kimi-k3',
-      ];
-      const hasOnlyLegacyModels =
-        p.availableModels &&
-        p.availableModels.length > 0 &&
-        p.availableModels.every(m => legacyMockModels.includes(m));
-
-      if (!p.apiKey?.trim() || hasOnlyLegacyModels) {
-        if (p.defaultModel || (p.availableModels && p.availableModels.length > 0)) {
-          mutated = true;
-          return {
-            ...p,
-            defaultModel: '',
-            availableModels: [],
-          };
-        }
+    if (!list || list.length === 0) {
+      return PRESET_PROVIDERS;
+    }
+    const enhanced = list.map(p => {
+      const matchPreset = PRESET_PROVIDERS.find(
+        preset => preset.name.toLowerCase() === p.name.toLowerCase() || preset.id === p.id
+      );
+      if (matchPreset && (!p.availableModels || p.availableModels.length === 0)) {
+        return {
+          ...p,
+          defaultModel: p.defaultModel || matchPreset.defaultModel,
+          availableModels: matchPreset.availableModels,
+        };
       }
       return p;
     });
-    if (mutated) {
-      setStored(STORAGE_KEYS.AI_PROVIDERS, sanitized);
+    if (!enhanced.some(p => p.isActive) && enhanced.length > 0) {
+      enhanced[0].isActive = true;
     }
-    return sanitized;
+    return enhanced;
   },
   saveAIProviders: (providers: AIProvider[]) => setStored(STORAGE_KEYS.AI_PROVIDERS, providers),
 

@@ -74,6 +74,7 @@ export const AITab: React.FC<AITabProps> = ({
         <div className={subTab === 'chat' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <ChatView
             providers={providers}
+            onUpdateProviders={onUpdateProviders}
             sessions={sessions}
             onUpdateSessions={onUpdateSessions}
             skills={skills}

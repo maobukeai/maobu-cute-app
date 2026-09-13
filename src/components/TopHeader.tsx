@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AppTab } from '../types';
 import { Plus, Search, LayoutGrid } from 'lucide-react';
 import { sound } from '../utils/sound';
@@ -53,7 +54,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <div className="flex items-center text-caption text-ink-3">
             <span>工作台</span>
             <span className="mx-1.5 text-ink-3/60">/</span>
-            <span className="font-semibold text-ink">{meta.title}</span>
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.span
+                key={activeTab}
+                initial={{ opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -3 }}
+                transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
+                className="font-semibold text-ink inline-block"
+              >
+                {meta.title}
+              </motion.span>
+            </AnimatePresence>
           </div>
           <span className="text-caption text-ink-3 hidden sm:inline">· {meta.subtitle}</span>
         </div>
@@ -91,18 +103,29 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <div className={`flex flex-col text-left min-w-0 justify-center transition-all duration-200 overflow-hidden ${
           showTitle ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0'
         }`}>
-          <h1 className={`text-ink tracking-tight leading-tight truncate transition-all duration-200 origin-left ${
-            scrolled ? 'text-sub font-semibold scale-[0.98]' : 'text-title font-bold'
-          }`}>
-            {meta.title}
-          </h1>
-          {subtitle && (
-            <span className={`text-caption text-ink-3 leading-tight truncate transition-all duration-200 overflow-hidden ${
-              scrolled ? 'max-h-0 opacity-0' : 'max-h-5 opacity-100 mt-0.5'
-            }`}>
-              {subtitle}
-            </span>
-          )}
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
+              className="flex flex-col text-left min-w-0 justify-center"
+            >
+              <h1 className={`text-ink tracking-tight leading-tight truncate transition-all duration-200 origin-left ${
+                scrolled ? 'text-sub font-semibold scale-[0.98]' : 'text-title font-bold'
+              }`}>
+                {meta.title}
+              </h1>
+              {subtitle && (
+                <span className={`text-caption text-ink-3 leading-tight truncate transition-all duration-200 overflow-hidden ${
+                  scrolled ? 'max-h-0 opacity-0 mt-0' : 'max-h-5 opacity-100 mt-0.5'
+                }`}>
+                  {subtitle}
+                </span>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 

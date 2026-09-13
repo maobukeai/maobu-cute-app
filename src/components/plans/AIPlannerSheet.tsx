@@ -54,6 +54,8 @@ export const AIPlannerSheet: React.FC<AIPlannerSheetProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       setSelectedModel(activeProvider?.defaultModel || (availableModels[0] || ''));
+    } else {
+      reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, activeProvider?.defaultModel]);
