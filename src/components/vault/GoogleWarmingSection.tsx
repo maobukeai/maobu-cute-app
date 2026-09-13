@@ -226,10 +226,14 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
   }, [nowSec, accounts, totpMap]);
 
   // Copy helper
-  const copyText = (text: string, id: string) => {
+  const copyText = (text: string, id: string, label?: string) => {
     sound.playTap();
+    haptics.selection();
     navigator.clipboard.writeText(text);
     setCopiedId(id);
+    if (label) {
+      toast.success(`已复制 ${label}`);
+    }
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -893,12 +897,19 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                       </div>
 
                       {/* 2. Primary email container */}
-                      <div className="bg-surface-2 p-2.5 rounded-xl flex items-center justify-between gap-2">
+                      <div
+                        onClick={() => copyText(acc.email, acc.id + '_email', '谷歌账号')}
+                        className="bg-surface-2 hover:bg-surface-3/70 p-2.5 rounded-xl flex items-center justify-between gap-2 cursor-pointer group/email transition active:scale-[0.99]"
+                        title="点击直接复制账号"
+                      >
                         <div className="min-w-0 flex-1">
-                          <div className="text-caption text-ink-3 font-medium leading-none mb-1">
-                            Google / Gmail 账号
+                          <div className="text-caption text-ink-3 font-medium leading-none mb-1 flex items-center gap-1.5">
+                            <span>Google / Gmail 账号</span>
+                            <span className="text-2xs opacity-0 group-hover/email:opacity-100 text-accent transition-opacity">
+                              · 点击复制
+                            </span>
                           </div>
-                          <div className="text-body font-bold font-mono text-ink break-all select-all leading-snug">
+                          <div className="text-body font-bold font-mono text-ink break-all select-all leading-snug group-hover/email:text-accent transition-colors">
                             {acc.email}
                           </div>
                         </div>
@@ -906,16 +917,19 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                         <Button
                           variant="neutral"
                           size="sm"
-                          onClick={() => copyText(acc.email, acc.id + '_email')}
+                          onClick={e => {
+                            e.stopPropagation();
+                            copyText(acc.email, acc.id + '_email', '谷歌账号');
+                          }}
                           className="shrink-0"
-                          title="点击复制邮箱"
+                          title="点击复制账号"
                         >
                           {copiedId === acc.id + '_email' ? (
                             <Check className="w-3 h-3 text-ok" />
                           ) : (
                             <Copy className="w-3 h-3" />
                           )}
-                          <span>{copiedId === acc.id + '_email' ? '已复制' : '复制'}</span>
+                          <span>{copiedId === acc.id + '_email' ? '已复制' : '复制账号'}</span>
                         </Button>
                       </div>
 
@@ -947,7 +961,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                               {isPwVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                             </button>
                             <button
-                              onClick={() => copyText(acc.password!, acc.id + '_pw')}
+                              onClick={() => copyText(acc.password!, acc.id + '_pw', '密码')}
                               className="text-accent font-semibold px-0.5"
                               title="复制密码"
                             >
@@ -1000,7 +1014,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                           <div className="flex items-center gap-2 shrink-0">
                             <TotpCountdown />
 
-                            <Button variant="primary" size="sm" onClick={() => copyText(totp.code, acc.id + '_totp')}>
+                            <Button variant="primary" size="sm" onClick={() => copyText(totp.code, acc.id + '_totp', '2FA 动态码')}>
                               {copiedId === acc.id + '_totp' ? (
                                 <Check className="w-3.5 h-3.5" />
                               ) : (
@@ -1022,7 +1036,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                                 辅: <span className="text-ink font-mono select-all">{acc.recoveryEmail}</span>
                               </span>
                               <button
-                                onClick={() => copyText(acc.recoveryEmail!, acc.id + '_rec')}
+                                onClick={() => copyText(acc.recoveryEmail!, acc.id + '_rec', '辅助邮箱')}
                                 className="text-ink-3 hover:text-accent shrink-0"
                               >
                                 {copiedId === acc.id + '_rec' ? '已复制' : '复制'}
@@ -1036,7 +1050,7 @@ export const GoogleWarmingSection: React.FC<GoogleWarmingSectionProps> = ({
                                 包含安全备用码
                               </span>
                               <button
-                                onClick={() => copyText(acc.backupCodes!, acc.id + '_bc')}
+                                onClick={() => copyText(acc.backupCodes!, acc.id + '_bc', '备用码')}
                                 className="text-ink-3 hover:text-accent shrink-0"
                               >
                                 {copiedId === acc.id + '_bc' ? '已复制备用码' : '复制备用码'}

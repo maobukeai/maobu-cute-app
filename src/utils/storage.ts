@@ -209,7 +209,27 @@ export const db = {
   getNotes: (): NoteItem[] => {
     const notes = getStored(STORAGE_KEYS.NOTES, DEFAULT_NOTES);
     let mutated = false;
-    const sanitized = notes.map(n => {
+
+    // Filter out legacy default mock notes so only 1 onboarding note is retained by default
+    const legacyMockIds = ['n_2', 'n_3'];
+    const filtered = notes.filter(n => {
+      if (legacyMockIds.includes(n.id)) {
+        mutated = true;
+        return false;
+      }
+      if (
+        n.title.includes('秋日午后与猫咪') ||
+        n.title.includes('猫咪新手科学养护') ||
+        n.title.includes('测试笔记')
+      ) {
+        mutated = true;
+        return false;
+      }
+      return true;
+    });
+
+    const activeList = filtered.length === 0 ? DEFAULT_NOTES : filtered;
+    const sanitized = activeList.map(n => {
       let title = n.title;
       let content = n.content;
       if (title.includes('🐾') || title.includes('🐱')) {

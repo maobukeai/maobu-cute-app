@@ -79,13 +79,21 @@ const ThinkingProcessCard: React.FC<{
   isReasoning?: boolean;
   durationSeconds?: number;
 }> = ({ reasoning, isReasoning, durationSeconds }) => {
-  const [isExpanded, setIsExpanded] = useState(isReasoning ?? false);
+  // Collapse by default when complete or for historical messages; expand only while actively reasoning
+  const [isExpanded, setIsExpanded] = useState(!!isReasoning);
   const [copied, setCopied] = useState(false);
+  const prevIsReasoningRef = useRef(isReasoning);
 
   useEffect(() => {
-    if (isReasoning) {
+    // When reasoning starts (streaming thoughts), auto-expand
+    if (isReasoning && !prevIsReasoningRef.current) {
       setIsExpanded(true);
     }
+    // When reasoning finishes or response completes, auto-collapse so answer is front and center
+    else if (!isReasoning && prevIsReasoningRef.current) {
+      setIsExpanded(false);
+    }
+    prevIsReasoningRef.current = isReasoning;
   }, [isReasoning]);
 
   const handleCopy = (e: React.MouseEvent) => {

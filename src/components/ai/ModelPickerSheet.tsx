@@ -216,27 +216,25 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
         }}
       />
 
-      {/* Sheet Container */}
+      {/* Compact Sheet Container */}
       <div
-        className="relative w-full sm:max-w-xl h-[82vh] sm:h-[560px] max-h-[90vh] bg-surface rounded-t-[28px] sm:rounded-3xl border border-line shadow-2xl flex flex-col overflow-hidden z-10 animate-slide-up"
+        className="relative w-full sm:max-w-md max-h-[62vh] bg-surface rounded-t-[24px] sm:rounded-2xl border border-line shadow-2xl flex flex-col overflow-hidden z-10 animate-slide-up"
         onClick={e => e.stopPropagation()}
       >
         {/* Mobile Pull Handle */}
         <div className="pt-2 pb-1 flex justify-center sm:hidden shrink-0">
-          <div className="w-10 h-1 rounded-full bg-ink-4/30" />
+          <div className="w-9 h-1 rounded-full bg-ink-4/30" />
         </div>
 
         {/* Compact Header */}
-        <div className="px-4 py-2.5 border-b border-line flex items-center justify-between gap-2 shrink-0">
+        <div className="px-3.5 py-2 border-b border-line flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-sub font-bold text-ink truncate leading-tight">选择大模型</h3>
-                <span className="text-caption text-ink-3">先厂商，后模型</span>
-              </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className="text-sub font-bold text-ink truncate leading-tight">选择大模型</h3>
+              <span className="text-[11px] text-ink-3">点击即切换</span>
             </div>
           </div>
 
@@ -248,11 +246,11 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                 onClose();
                 onGoToProviders();
               }}
-              className="px-2.5 py-1 rounded-full bg-surface-2 hover:bg-surface-3 text-ink-2 hover:text-ink text-caption font-medium flex items-center gap-1 transition select-none"
+              className="px-2 py-0.5 rounded-full bg-surface-2 hover:bg-surface-3 text-ink-2 hover:text-ink text-[11px] font-medium flex items-center gap-1 transition select-none"
               title="前往模型配置页面"
             >
               <Sliders className="w-3 h-3" />
-              <span>配置</span>
+              <span>配置厂商</span>
             </button>
             <button
               type="button"
@@ -260,7 +258,7 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
                 sound.playTap();
                 onClose();
               }}
-              className="w-7 h-7 rounded-full bg-surface-2 hover:bg-surface-3 text-ink-3 hover:text-ink flex items-center justify-center active:scale-95 transition"
+              className="w-6 h-6 rounded-full bg-surface-2 hover:bg-surface-3 text-ink-3 hover:text-ink flex items-center justify-center active:scale-95 transition"
               aria-label="关闭"
             >
               <X className="w-3.5 h-3.5" />
@@ -268,268 +266,257 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="px-3 py-2 border-b border-line/60 bg-surface-2/30 shrink-0">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2" />
+        {/* Vendor Selector Strip (Horizontal Pills) */}
+        <div className="px-3 py-1.5 border-b border-line/60 bg-surface-2/30 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <span className="text-[11px] text-ink-3 font-medium shrink-0">服务商:</span>
+          {filteredProviders.map(p => {
+            const isSelected = p.id === selectedProviderId;
+            const isCurrentActive = p.isActive;
+            const modelCount =
+              (p.availableModels?.length || 0) +
+              (p.defaultModel && !p.availableModels?.includes(p.defaultModel) ? 1 : 0);
+
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  sound.playTap();
+                  haptics.selection();
+                  setSelectedProviderId(p.id);
+                }}
+                className={`px-2.5 py-1 rounded-full text-caption font-semibold flex items-center gap-1.5 shrink-0 transition-all tactile-press ${
+                  isSelected
+                    ? 'bg-accent text-white shadow-xs'
+                    : 'bg-surface border border-line/70 text-ink-2 hover:text-ink'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isSelected ? 'bg-white' : isCurrentActive ? 'bg-accent' : 'bg-ink-4'
+                  }`}
+                />
+                <span className="truncate max-w-[120px]">{p.name}</span>
+                <span className={isSelected ? 'text-white/80 text-[11px]' : 'text-ink-3 text-[11px]'}>
+                  {modelCount}
+                </span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setShowAddVendorMenu(!showAddVendorMenu)}
+            className="px-2 py-0.5 rounded-full border border-dashed border-line text-ink-3 hover:text-accent text-[11px] font-medium flex items-center gap-0.5 shrink-0 transition hover:border-accent/40"
+            title="添加常用预设厂商"
+          >
+            <Plus className="w-3 h-3" />
+            <span>添加</span>
+          </button>
+        </div>
+
+        {/* Quick Add Vendor Dropdown Menu */}
+        {showAddVendorMenu && (
+          <div className="px-3 py-2 bg-surface-2/80 border-b border-line/60 space-y-1.5 animate-scale-in shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-ink-3 font-semibold">快速添加常用厂商预设：</span>
+              <button
+                type="button"
+                onClick={() => setShowAddVendorMenu(false)}
+                className="text-ink-3 hover:text-ink text-[11px]"
+              >
+                收起
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              {PROVIDER_TEMPLATES.map(tmpl => {
+                const alreadyExists = providers.some(
+                  p => p.name.toLowerCase() === tmpl.name.toLowerCase()
+                );
+                return (
+                  <button
+                    key={tmpl.id}
+                    type="button"
+                    disabled={alreadyExists}
+                    onClick={() => handleAddVendorPreset(tmpl.id)}
+                    className={`px-2 py-1 rounded-lg text-caption shrink-0 flex items-center gap-1 border transition ${
+                      alreadyExists
+                        ? 'opacity-40 cursor-not-allowed bg-surface border-line text-ink-4'
+                        : 'bg-surface hover:bg-surface-2 border-line hover:border-accent text-ink font-medium shadow-xs'
+                    }`}
+                  >
+                    <span>{tmpl.name}</span>
+                    {alreadyExists ? (
+                      <span className="text-[10px] text-ink-4">已加</span>
+                    ) : (
+                      <Plus className="w-3 h-3 text-accent" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Search & Actions Bar */}
+        <div className="px-3 py-1.5 border-b border-line/50 flex items-center gap-1.5 bg-surface shrink-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-3 h-3 text-ink-3 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索厂商或大模型名称（如 谷歌 / deepseek）…"
-              className="w-full pl-8 pr-3 py-1.5 text-caption bg-surface rounded-xl border border-line focus:outline-none focus:border-accent text-ink placeholder:text-ink-4 transition"
+              placeholder={`搜索 ${currentProvider?.name || ''} 模型...`}
+              className="w-full pl-7 pr-6 py-1 text-caption bg-surface-2/70 rounded-lg border border-line/60 focus:outline-none focus:border-accent text-ink placeholder:text-ink-4 transition h-7"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink text-caption"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink text-2xs"
               >
-                清空
+                <X className="w-3 h-3" />
               </button>
             )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={handleFetchRemoteModels}
+              disabled={isFetchingRemote || !currentProvider?.baseUrl}
+              className="h-7 px-2 rounded-lg bg-surface-2 hover:bg-surface-3 text-ink-2 hover:text-accent text-[11px] font-medium flex items-center gap-1 transition disabled:opacity-40"
+              title="从 /models 远端拉取最新模型"
+            >
+              <RefreshCw className={`w-3 h-3 ${isFetchingRemote ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">拉取</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAddingModel(!isAddingModel)}
+              className="h-7 px-2 rounded-lg bg-surface-2 hover:bg-surface-3 text-ink-2 hover:text-accent text-[11px] font-medium flex items-center gap-1 transition"
+              title="手动输入新模型"
+            >
+              <Plus className="w-3 h-3" />
+              <span className="hidden xs:inline">自定义</span>
+            </button>
           </div>
         </div>
 
-        {/* Two-Column Cascader Body */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Column 1: 厂商列表 (Left Column, ~40%) */}
-          <div className="w-5/12 max-w-[190px] min-w-[130px] border-r border-line bg-surface-2/40 flex flex-col min-h-0">
-            <div className="px-3 py-1.5 text-2xs font-semibold text-ink-3 uppercase tracking-wider border-b border-line/50 shrink-0 flex items-center justify-between">
-              <span>服务商</span>
-              <span>{filteredProviders.length}</span>
-            </div>
+        {/* Inline Add Custom Model Form */}
+        {isAddingModel && (
+          <form
+            onSubmit={handleAddCustomModel}
+            className="p-2 border-b border-line/60 bg-surface-2/60 flex items-center gap-1.5 shrink-0 animate-fade-in"
+          >
+            <Input
+              type="text"
+              autoFocus
+              value={newModelInput}
+              onChange={e => setNewModelInput(e.target.value)}
+              placeholder="如 gemini-2.5-flash / deepseek-chat"
+              className="flex-1 font-mono text-caption py-1 px-2.5 h-7"
+            />
+            <Button type="submit" variant="primary" size="sm" className="h-7 px-2.5 text-caption shrink-0">
+              选用
+            </Button>
+            <Button
+              type="button"
+              variant="neutral"
+              size="sm"
+              onClick={() => setIsAddingModel(false)}
+              className="h-7 px-2 text-caption shrink-0"
+            >
+              取消
+            </Button>
+          </form>
+        )}
 
-            <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar divide-y divide-line/30">
-              {filteredProviders.map(p => {
-                const isSelected = p.id === selectedProviderId;
-                const isCurrentActive = p.isActive;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      sound.playTap();
-                      haptics.selection();
-                      setSelectedProviderId(p.id);
-                    }}
-                    className={`w-full px-3 py-2.5 flex items-center justify-between text-left transition select-none group cursor-pointer ${
-                      isSelected
-                        ? 'bg-surface font-bold text-ink shadow-2xs border-l-2 border-accent'
-                        : 'hover:bg-surface/50 text-ink-2 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0 pr-1">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          isCurrentActive ? 'bg-accent animate-pulse' : 'bg-ink-4'
-                        }`}
-                        title={isCurrentActive ? '当前对话生效厂商' : '未激活'}
-                      />
-                      <span className="text-caption truncate leading-snug">{p.name}</span>
-                    </div>
-                    <ChevronRight
-                      className={`w-3.5 h-3.5 shrink-0 transition-transform ${
-                        isSelected ? 'text-accent translate-x-0.5' : 'text-ink-4 opacity-70'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
-
-              {/* Add Vendor button */}
-              <div className="p-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAddVendorMenu(!showAddVendorMenu)}
-                  className="w-full py-1.5 px-2 rounded-xl border border-dashed border-line hover:border-accent/60 bg-surface/60 hover:bg-surface text-ink-2 hover:text-accent text-caption font-semibold flex items-center justify-center gap-1 transition"
+        {/* Full-width Models Scrollable List (Comfortable height) */}
+        <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-2 space-y-1 min-h-[140px] max-h-[300px]">
+          {providerModels.length === 0 ? (
+            <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 gap-2">
+              <span className="text-caption text-ink-3">该厂商暂未配置可用模型</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="soft"
+                  size="sm"
+                  onClick={() => setIsAddingModel(true)}
+                  className="text-caption h-7"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>添加厂商</span>
-                </button>
-
-                {showAddVendorMenu && (
-                  <div className="mt-1.5 p-1.5 bg-surface rounded-xl border border-line shadow-elev-2 space-y-1 animate-fade-in">
-                    <div className="text-2xs text-ink-3 px-1.5 font-medium">快速添加常用预设：</div>
-                    {PROVIDER_TEMPLATES.map(tmpl => {
-                      const alreadyExists = providers.some(
-                        p => p.name.toLowerCase() === tmpl.name.toLowerCase()
-                      );
-                      return (
-                        <button
-                          key={tmpl.id}
-                          type="button"
-                          disabled={alreadyExists}
-                          onClick={() => handleAddVendorPreset(tmpl.id)}
-                          className={`w-full text-left px-2 py-1 rounded-lg text-caption flex items-center justify-between transition ${
-                            alreadyExists
-                              ? 'opacity-40 cursor-not-allowed text-ink-3'
-                              : 'hover:bg-surface-2 text-ink hover:text-accent font-medium'
-                          }`}
-                        >
-                          <span>{tmpl.name}</span>
-                          {alreadyExists ? (
-                            <span className="text-2xs text-ink-4">已存在</span>
-                          ) : (
-                            <Plus className="w-3 h-3 opacity-60" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <Plus className="w-3 h-3" />
+                  <span>手动添加</span>
+                </Button>
+                {currentProvider?.baseUrl && (
+                  <Button
+                    variant="neutral"
+                    size="sm"
+                    onClick={handleFetchRemoteModels}
+                    disabled={isFetchingRemote}
+                    className="text-caption h-7"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isFetchingRemote ? 'animate-spin' : ''}`} />
+                    <span>在线拉取</span>
+                  </Button>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Column 2: 该厂商的模型列表 (Right Column, ~60%) */}
-          <div className="flex-1 flex flex-col min-h-0 bg-surface">
-            {/* Right Column Header */}
-            <div className="px-3.5 py-2 border-b border-line/50 flex items-center justify-between gap-2 shrink-0 bg-surface">
-              <div className="min-w-0">
-                <span className="text-caption font-bold text-ink truncate block">
-                  {currentProvider?.name || '厂商'} 的大模型
-                </span>
-                <span className="text-2xs text-ink-3">
-                  共 {providerModels.length} 个模型 · 点击立即切换
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
+          ) : (
+            providerModels.map(model => {
+              const isModelActive =
+                currentProvider?.isActive && currentProvider?.defaultModel === model;
+              return (
                 <button
+                  key={model}
                   type="button"
-                  onClick={handleFetchRemoteModels}
-                  disabled={isFetchingRemote || !currentProvider?.baseUrl}
-                  className="p-1 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-accent transition disabled:opacity-40"
-                  title="从 /models 远端拉取最新模型"
+                  onClick={() => handleSelectModel(model)}
+                  className={`w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between gap-2 select-none group cursor-pointer ${
+                    isModelActive
+                      ? 'bg-accent/10 border border-accent/30 text-accent font-semibold shadow-2xs'
+                      : 'hover:bg-surface-2 border border-transparent text-ink'
+                  }`}
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isFetchingRemote ? 'animate-spin' : ''}`} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsAddingModel(!isAddingModel)}
-                  className="p-1 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-accent transition"
-                  title="手动输入新模型"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Inline Add Model Input Form */}
-            {isAddingModel && (
-              <form
-                onSubmit={handleAddCustomModel}
-                className="p-2 border-b border-line/60 bg-surface-2/40 flex items-center gap-1.5 shrink-0 animate-fade-in"
-              >
-                <Input
-                  type="text"
-                  autoFocus
-                  value={newModelInput}
-                  onChange={e => setNewModelInput(e.target.value)}
-                  placeholder="如 gemini-3.5-flash-lite / deepseek-v4"
-                  className="flex-1 font-mono text-caption py-1 px-2.5 h-7"
-                />
-                <Button type="submit" variant="primary" size="sm" className="h-7 px-2.5 text-2xs shrink-0">
-                  选用
-                </Button>
-                <Button
-                  type="button"
-                  variant="neutral"
-                  size="sm"
-                  onClick={() => setIsAddingModel(false)}
-                  className="h-7 px-1.5 text-2xs shrink-0"
-                >
-                  取消
-                </Button>
-              </form>
-            )}
-
-            {/* Models Scrollable List */}
-            <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-2 space-y-1">
-              {providerModels.length === 0 ? (
-                <div className="h-full min-h-[180px] flex flex-col items-center justify-center text-center p-4 gap-2">
-                  <span className="text-caption text-ink-3">该服务商暂未配置模型</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="soft"
-                      size="sm"
-                      onClick={() => setIsAddingModel(true)}
-                      className="text-2xs"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>手动添加</span>
-                    </Button>
-                    {currentProvider?.baseUrl && (
-                      <Button
-                        variant="neutral"
-                        size="sm"
-                        onClick={handleFetchRemoteModels}
-                        disabled={isFetchingRemote}
-                        className="text-2xs"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${isFetchingRemote ? 'animate-spin' : ''}`} />
-                        <span>自动拉取</span>
-                      </Button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-caption font-mono truncate leading-normal">
+                      {model}
+                    </div>
+                    {isModelActive && (
+                      <span className="text-[10px] text-accent font-sans block mt-0.5">当前生效模型</span>
                     )}
                   </div>
-                </div>
-              ) : (
-                providerModels.map(model => {
-                  const isModelActive =
-                    currentProvider?.isActive && currentProvider?.defaultModel === model;
-                  return (
-                    <button
-                      key={model}
-                      type="button"
-                      onClick={() => handleSelectModel(model)}
-                      className={`w-full px-3 py-2 rounded-xl text-left transition flex items-center justify-between gap-2 select-none group cursor-pointer ${
-                        isModelActive
-                          ? 'bg-accent/10 border border-accent/30 text-accent font-semibold shadow-2xs'
-                          : 'hover:bg-surface-2 border border-transparent text-ink'
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="text-caption font-mono truncate leading-normal">
-                          {model}
-                        </div>
-                        {isModelActive && (
-                          <span className="text-3xs text-accent/80 font-sans block">当前生效模型</span>
-                        )}
-                      </div>
 
-                      {isModelActive ? (
-                        <Check className="w-4 h-4 text-accent shrink-0" />
-                      ) : (
-                        <span className="text-2xs text-ink-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          切换
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+                  {isModelActive ? (
+                    <div className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Check className="w-3 h-3 stroke-[2.5]" />
+                    </div>
+                  ) : (
+                    <span className="text-caption text-ink-4 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      切换
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
 
-            {/* Quick Helper / Provider Manage Bottom Bar */}
-            <div className="px-3 py-2 border-t border-line/60 bg-surface-2/30 flex items-center justify-between text-2xs text-ink-3 shrink-0">
-              <span className="truncate">
-                端点: {currentProvider?.baseUrl ? new URL(currentProvider.baseUrl).hostname : '未配置'}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  sound.playTap();
-                  onClose();
-                  onGoToProviders();
-                }}
-                className="text-accent hover:underline font-medium shrink-0"
-              >
-                配置端点与密钥 →
-              </button>
-            </div>
-          </div>
+        {/* Compact Footer */}
+        <div className="px-3 py-1.5 border-t border-line/60 bg-surface-2/40 flex items-center justify-between text-[11px] text-ink-3 shrink-0">
+          <span className="truncate max-w-[200px]">
+            端点: {currentProvider?.baseUrl ? new URL(currentProvider.baseUrl).hostname : '未配置'}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              sound.playTap();
+              onClose();
+              onGoToProviders();
+            }}
+            className="text-accent hover:underline font-medium shrink-0"
+          >
+            端点与密钥配置 →
+          </button>
         </div>
       </div>
     </div>

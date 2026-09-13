@@ -434,7 +434,24 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap gap-y-1">
-                          <span className="text-sub font-bold text-ink truncate">{acc.email}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              copyWithFeedback(acc.email, `email_${acc.id}`);
+                              toast.success('已复制邮箱地址');
+                            }}
+                            className="group/email inline-flex items-center gap-1.5 text-left max-w-full hover:opacity-80 active:scale-[0.98] transition"
+                            title="点击复制邮箱地址"
+                          >
+                            <span className="text-sub font-bold text-ink truncate underline-offset-2 group-hover/email:underline">
+                              {acc.email}
+                            </span>
+                            {copiedId === `email_${acc.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-ok shrink-0 animate-scale-in" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5 text-ink-3 group-hover/email:text-accent shrink-0 transition-colors" />
+                            )}
+                          </button>
                           <span
                             className={`text-caption px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1.5 shrink-0 ${status.pill}`}
                           >
@@ -466,10 +483,26 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
                     {/* Credentials preview (masked) */}
                     <div className="p-2.5 bg-surface-2 rounded-xl space-y-1 font-mono">
                       <div className="flex items-center justify-between text-caption text-ink-2">
-                        <span>密码: {isRevealed ? acc.password : '••••••••'}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            copyWithFeedback(acc.password, `pwd_${acc.id}`);
+                            toast.success('已复制密码');
+                          }}
+                          className="hover:text-accent flex items-center gap-1 text-left transition"
+                          title="点击复制密码"
+                        >
+                          <span>密码: {isRevealed ? acc.password : '••••••••'}</span>
+                          {copiedId === `pwd_${acc.id}` ? (
+                            <Check className="w-3 h-3 text-ok shrink-0" />
+                          ) : (
+                            <Copy className="w-3 h-3 text-ink-3 hover:text-accent shrink-0" />
+                          )}
+                        </button>
                         <button
                           onClick={() => toggleRevealHotmail(acc.id)}
                           className="text-ink-3 hover:text-ink p-0.5"
+                          title={isRevealed ? '隐藏密码' : '显示密码'}
                         >
                           {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
@@ -477,8 +510,25 @@ export const HotmailSection: React.FC<HotmailSectionProps> = ({
                       <div className="text-caption text-ink-3 truncate">
                         Client ID: {acc.clientId || '默认'}
                       </div>
-                      <div className="text-caption text-ink-3 truncate">
-                        Token: {isRevealed ? acc.refreshToken : acc.refreshToken.slice(0, 15) + '...'}
+                      <div className="flex items-center justify-between text-caption text-ink-3">
+                        <span className="truncate flex-1">
+                          Token: {isRevealed ? acc.refreshToken : acc.refreshToken.slice(0, 15) + '...'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            copyWithFeedback(acc.refreshToken, `tok_${acc.id}`);
+                            toast.success('已复制 RefreshToken');
+                          }}
+                          className="text-ink-3 hover:text-accent p-0.5 shrink-0 ml-1 transition-colors"
+                          title="复制 RefreshToken"
+                        >
+                          {copiedId === `tok_${acc.id}` ? (
+                            <Check className="w-3 h-3 text-ok shrink-0" />
+                          ) : (
+                            <Copy className="w-3 h-3 shrink-0" />
+                          )}
+                        </button>
                       </div>
                     </div>
 
