@@ -6,6 +6,7 @@ import { haptics } from '../../utils/haptics';
 import { ACCENTS, ACCENT_ORDER, applyAccent } from '../../utils/theme';
 import { WebDAVSyncCard } from '../WebDAVSyncCard';
 import { AboutSection } from '../AboutSection';
+import { CURRENT_VERSION } from '../../utils/updater';
 import { Screen, SegmentedControl, Switch, Button, useToast } from '../ui';
 import {
   RotateCcw,
@@ -213,7 +214,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               <div className="flex items-center gap-2">
                 <span className="text-headline font-bold text-ink truncate">猫步可爱</span>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-bold font-mono">
-                  v0.1.1
+                  v{CURRENT_VERSION}
                 </span>
               </div>
               <p className="text-caption text-ink-3 mt-0.5 truncate">
@@ -395,7 +396,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                       </span>
                     )}
-                    <span className="font-semibold text-ink-2">v0.1.1 (Android)</span>
+                    <span className="font-semibold text-ink-2">v{CURRENT_VERSION} (Android)</span>
                     <ChevronRight className="w-4 h-4 text-ink-3" />
                   </div>
                 }
@@ -414,7 +415,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               }}
               className="hover:text-accent transition inline-flex items-center gap-1.5 font-medium"
             >
-              <span>关于猫步可爱 v0.1.1 (Android 正式版)</span>
+              <span>关于猫步可爱 v{CURRENT_VERSION} (Android 正式版)</span>
             </button>
             <div className="text-ink-3/70">让每一个重要目标与灵感都能轻巧落地</div>
           </div>

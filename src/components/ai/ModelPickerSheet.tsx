@@ -269,45 +269,49 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
         {/* Vendor Selector Strip (Horizontal Pills) */}
         <div className="px-3 py-1.5 border-b border-line/60 bg-surface-2/30 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
           <span className="text-[11px] text-ink-3 font-medium shrink-0">服务商:</span>
-          {filteredProviders.map(p => {
-            const isSelected = p.id === selectedProviderId;
-            const isCurrentActive = p.isActive;
-            const modelCount =
-              (p.availableModels?.length || 0) +
-              (p.defaultModel && !p.availableModels?.includes(p.defaultModel) ? 1 : 0);
+          {filteredProviders.length === 0 ? (
+            <span className="text-[11px] text-ink-4 italic px-1">暂无已配置厂商</span>
+          ) : (
+            filteredProviders.map(p => {
+              const isSelected = p.id === selectedProviderId;
+              const isCurrentActive = p.isActive;
+              const modelCount =
+                (p.availableModels?.length || 0) +
+                (p.defaultModel && !p.availableModels?.includes(p.defaultModel) ? 1 : 0);
 
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  sound.playTap();
-                  haptics.selection();
-                  setSelectedProviderId(p.id);
-                }}
-                className={`px-2.5 py-1 rounded-full text-caption font-semibold flex items-center gap-1.5 shrink-0 transition-all tactile-press ${
-                  isSelected
-                    ? 'bg-accent text-white shadow-xs'
-                    : 'bg-surface border border-line/70 text-ink-2 hover:text-ink'
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isSelected ? 'bg-white' : isCurrentActive ? 'bg-accent' : 'bg-ink-4'
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    sound.playTap();
+                    haptics.selection();
+                    setSelectedProviderId(p.id);
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-caption font-semibold flex items-center gap-1.5 shrink-0 transition-all tactile-press ${
+                    isSelected
+                      ? 'bg-accent text-white shadow-xs'
+                      : 'bg-surface border border-line/70 text-ink-2 hover:text-ink'
                   }`}
-                />
-                <span className="truncate max-w-[120px]">{p.name}</span>
-                <span className={isSelected ? 'text-white/80 text-[11px]' : 'text-ink-3 text-[11px]'}>
-                  {modelCount}
-                </span>
-              </button>
-            );
-          })}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isSelected ? 'bg-white' : isCurrentActive ? 'bg-accent' : 'bg-ink-4'
+                    }`}
+                  />
+                  <span className="truncate max-w-[120px]">{p.name}</span>
+                  <span className={isSelected ? 'text-white/80 text-[11px]' : 'text-ink-3 text-[11px]'}>
+                    {modelCount}
+                  </span>
+                </button>
+              );
+            })
+          )}
 
           <button
             type="button"
             onClick={() => setShowAddVendorMenu(!showAddVendorMenu)}
-            className="px-2 py-0.5 rounded-full border border-dashed border-line text-ink-3 hover:text-accent text-[11px] font-medium flex items-center gap-0.5 shrink-0 transition hover:border-accent/40"
+            className="px-2 py-0.5 rounded-full border border-dashed border-accent/40 text-accent text-[11px] font-medium flex items-center gap-0.5 shrink-0 transition hover:border-accent cursor-pointer"
             title="添加常用预设厂商"
           >
             <Plus className="w-3 h-3" />
@@ -435,7 +439,33 @@ export const ModelPickerSheet: React.FC<ModelPickerSheetProps> = ({
 
         {/* Full-width Models Scrollable List (Comfortable height) */}
         <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar p-2 space-y-1 min-h-[140px] max-h-[300px]">
-          {providerModels.length === 0 ? (
+          {!currentProvider ? (
+            <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 gap-2">
+              <span className="text-caption text-ink-3">尚未添加模型服务商</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onGoToProviders();
+                  }}
+                  className="text-caption h-7 px-3"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>去配置厂商</span>
+                </Button>
+                <Button
+                  variant="neutral"
+                  size="sm"
+                  onClick={() => setShowAddVendorMenu(true)}
+                  className="text-caption h-7 px-2.5"
+                >
+                  <span>常用模版</span>
+                </Button>
+              </div>
+            </div>
+          ) : providerModels.length === 0 ? (
             <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 gap-2">
               <span className="text-caption text-ink-3">该厂商暂未配置可用模型</span>
               <div className="flex items-center gap-2">

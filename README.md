@@ -1,6 +1,6 @@
 # 🐱 猫步可爱 (Maobu Cute) - 极简高能个人全能助理
 
-[![Version](https://img.shields.io/badge/version-v0.10.0-emerald.svg)](https://github.com/maobukeai/maobu-cute-app/releases)
+[![Version](https://img.shields.io/badge/version-v0.1.2-emerald.svg)](https://github.com/maobukeai/maobu-cute-app/releases)
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 [![Electron](https://img.shields.io/badge/Electron-44-teal.svg)](https://www.electronjs.org/)
@@ -105,20 +105,21 @@ cd android && ./gradlew assembleDebug
 
 ## 📥 软件下载 (Releases)
 
-- 📱 **安卓移动端 (Android APK)**：[下载 maobu-cute-app-v0.10.0.apk](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.10.0/maobu-cute-app-v0.10.0.apk)（4.3 MB，安卓手机/模拟器直接安装畅享原生质感）
-- 💻 **Windows 桌面绿色版**：[下载 maobu-cute-app-v0.10.0-win-x64.zip](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.10.0/maobu-cute-app-v0.10.0-win-x64.zip)（158 MB，解压即用运行 `猫步可爱.exe`，无需配置 Node 环境）
+- 📱 **安卓移动端 (Android APK)**：[下载 maobu-cute-app-v0.1.2.apk](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.1.2/maobu-cute-app-v0.1.2.apk)（安卓手机/模拟器直接安装畅享原生质感）
+- 💻 **Windows 桌面便携版 (.exe)**：[下载 猫步可爱 0.1.2.exe](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.1.2/%E7%8C%AB%E6%AD%A5%E5%8F%AF%E7%88%B1%200.1.2.exe)（单文件免安装便携版，双击即用）
+- 💻 **Windows 桌面完整绿色版 (.zip)**：[下载 猫步可爱-0.1.2-win.zip](https://github.com/maobukeai/maobu-cute-app/releases/download/v0.1.2/%E7%8C%AB%E6%AD%A5%E5%8F%AF%E7%88%B1-0.1.2-win.zip)（解压即用运行 `猫步可爱.exe`，无需配置 Node 环境）
 
 ---
 
 ## 📦 版本记录
-- **v0.10.0 (2026-09-03)**:
-  - 首次公开发布版本；
-  - 集成 8 大核心功能模块；
-  - 引入 WebDAV 云端同步与备份；
-  - 引入 Markdown 编辑器 AI 实时干活动态看板；
-  - 引入 3D 平台数据互通与谷歌 14 天科学养号系统；
-  - 引入真实 GitHub 开源高星技能市场；
-  - 完成 Android 虚拟设备与 Windows 原生桌面端双端编译与实测验证，正式挂载 APK 与 Windows 绿色软件包。
+- **v0.1.2 (2026-09-15)**:
+  - **AI 服务商与模型池架构升级**：彻底清空默认未配置的内置模型服务商与测试假 Key，支持自由添加任意 OpenAI 协议服务商；新增可自选/添加/删除的模型池，支持设为默认与拉取远端 `/models`；
+  - **密码箱账号一键快捷复制**：密码箱列表中不仅支持快捷复制密码，用户名/账号亦支持单键快速复制与触觉反馈；
+  - **设置中心与版本管理优化**：全局版本号动态同步，完善防御性空值校验。
+- **v0.1.1 (2026-09-03)**:
+  - 纯净发布与安全加固，彻底置空冗余测试数据；
+  - 2FA 双重身份验证全能扫码引擎（摄像头扫码/相册导入/剪贴板极速识别）；
+  - 微软邮箱伴侣与谷歌 14 天防封养号系统深度优化。
 
 ---
 

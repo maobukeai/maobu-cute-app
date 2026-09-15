@@ -72,7 +72,7 @@ export const AINoteSheet: React.FC<AINoteSheetProps> = ({
     }
     if (quickTopic) setTopic(quickTopic);
 
-    if (!activeProvider?.apiKey?.trim() && !activeProvider?.baseUrl.includes('localhost')) {
+    if (!activeProvider?.apiKey?.trim() && !activeProvider?.baseUrl?.includes('localhost')) {
       toast.warn('请先在「AI 助手 -> 模型配置」中配置 API Key');
       onClose();
       onGoToAISettings();

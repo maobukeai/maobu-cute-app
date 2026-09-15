@@ -349,53 +349,18 @@ export const PROVIDER_TEMPLATES: ProviderTemplate[] = [
 ];
 
 export const DEFAULT_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_deepseek',
-  name: 'DeepSeek',
-  baseUrl: 'https://api.deepseek.com/v1',
+  id: 'provider_custom',
+  name: '自定义服务商',
+  baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
-  defaultModel: 'deepseek-chat',
-  availableModels: ['deepseek-chat', 'deepseek-reasoner'],
+  defaultModel: '',
+  availableModels: [],
   isActive: true,
 };
 
-export const SECOND_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_google',
-  name: '谷歌',
-  baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-  apiKey: '',
-  defaultModel: 'gemini-1.5-flash',
-  availableModels: ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-3.5-flash-lite'],
-  isActive: false,
-};
+export const PRESET_PROVIDERS: AIProvider[] = [];
 
-export const THIRD_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_sensenova',
-  name: 'sensenova',
-  baseUrl: 'https://api.sensenova.cn/v1',
-  apiKey: '',
-  defaultModel: 'SenseChat-5',
-  availableModels: ['SenseChat-5', 'SenseChat-Turbo'],
-  isActive: false,
-};
-
-export const FOURTH_CUSTOM_PROVIDER: AIProvider = {
-  id: 'provider_openai',
-  name: 'OpenAI',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKey: '',
-  defaultModel: 'gpt-4o-mini',
-  availableModels: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
-  isActive: false,
-};
-
-export const PRESET_PROVIDERS: AIProvider[] = [
-  DEFAULT_CUSTOM_PROVIDER,
-  SECOND_CUSTOM_PROVIDER,
-  THIRD_CUSTOM_PROVIDER,
-  FOURTH_CUSTOM_PROVIDER,
-];
-
-export function getActiveAIProvider(provider?: AIProvider): AIProvider {
+export function getActiveAIProvider(provider?: AIProvider): AIProvider | undefined {
   if (provider && provider.apiKey?.trim()) return provider;
   if (typeof window !== 'undefined') {
     try {
@@ -422,7 +387,7 @@ export function getActiveAIProvider(provider?: AIProvider): AIProvider {
       // ignore
     }
   }
-  return provider || DEFAULT_CUSTOM_PROVIDER;
+  return provider;
 }
 
 async function safeAiFetch(

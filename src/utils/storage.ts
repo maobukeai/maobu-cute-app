@@ -298,27 +298,28 @@ export const db = {
 
   // AI Providers
   getAIProviders: (): AIProvider[] => {
-    const list = getStored(STORAGE_KEYS.AI_PROVIDERS, PRESET_PROVIDERS);
-    if (!list || list.length === 0) {
-      return PRESET_PROVIDERS;
-    }
-    const enhanced = list.map(p => {
-      const matchPreset = PRESET_PROVIDERS.find(
-        preset => preset.name.toLowerCase() === p.name.toLowerCase() || preset.id === p.id
-      );
-      if (matchPreset && (!p.availableModels || p.availableModels.length === 0)) {
-        return {
-          ...p,
-          defaultModel: p.defaultModel || matchPreset.defaultModel,
-          availableModels: matchPreset.availableModels,
-        };
+    const list = getStored<AIProvider[]>(STORAGE_KEYS.AI_PROVIDERS, []);
+    let mutated = false;
+
+    // Filter out legacy unconfigured presets that were injected by earlier versions without user API keys
+    const legacyPresetIds = ['provider_deepseek', 'provider_google', 'provider_sensenova', 'provider_openai'];
+    const filtered = (list || []).filter(p => {
+      if (legacyPresetIds.includes(p.id) && (!p.apiKey || !p.apiKey.trim())) {
+        mutated = true;
+        return false;
       }
-      return p;
+      return true;
     });
-    if (!enhanced.some(p => p.isActive) && enhanced.length > 0) {
-      enhanced[0].isActive = true;
+
+    if (!filtered.some(p => p.isActive) && filtered.length > 0) {
+      filtered[0].isActive = true;
+      mutated = true;
     }
-    return enhanced;
+
+    if (mutated) {
+      setStored(STORAGE_KEYS.AI_PROVIDERS, filtered);
+    }
+    return filtered;
   },
   saveAIProviders: (providers: AIProvider[]) => setStored(STORAGE_KEYS.AI_PROVIDERS, providers),
 

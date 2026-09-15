@@ -385,9 +385,29 @@ export const PasswordsSection: React.FC<PasswordsSectionProps> = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-caption text-ink-3 truncate mt-0.5">
-                            {item.username || '(无用户名)'}
-                          </p>
+                          {item.username ? (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                copyWithFeedback(item.username, item.id + '_user');
+                                toast.success('已复制用户名/账号');
+                              }}
+                              className="text-caption text-ink-3 hover:text-accent truncate mt-0.5 inline-flex items-center gap-1 group/u text-left tactile-press cursor-pointer"
+                              title="点击直接复制账号/用户名"
+                            >
+                              <span className="truncate">{item.username}</span>
+                              {copiedId === item.id + '_user' ? (
+                                <Check className="w-3 h-3 text-ok shrink-0 animate-scale-in" />
+                              ) : (
+                                <Copy className="w-2.5 h-2.5 opacity-0 group-hover/u:opacity-100 shrink-0 text-accent transition-opacity" />
+                              )}
+                            </button>
+                          ) : (
+                            <p className="text-caption text-ink-3 truncate mt-0.5">
+                              (无用户名)
+                            </p>
+                          )}
                         </div>
                       </div>
 
